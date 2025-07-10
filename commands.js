@@ -1,49 +1,45 @@
 import 'dotenv/config';
-import { getRPSChoices } from './game.js';
-import { capitalize, InstallGlobalCommands } from './utils.js';
+import { InstallGlobalCommands } from './utils.js';
 
-// Get the game choices from game.js
-function createCommandChoices() {
-  const choices = getRPSChoices();
-  const commandChoices = [];
-
-  for (let choice of choices) {
-    commandChoices.push({
-      name: capitalize(choice),
-      value: choice.toLowerCase(),
-    });
-  }
-
-  return commandChoices;
-}
-
-// Simple test command
-const TEST_COMMAND = {
-  name: 'test',
-  description: 'Basic command',
+// Set users personal timezone
+const TIMEZONE_COMMAND = {
+  name: 'timezone',
+  description: 'Set your personal timezone',
+  options: [
+    {
+      type: 3,
+      name: 'timezone',
+      description: 'Your timezone (e.g., EST, America/New_York, UTC-5)',
+      required: true
+    }
+  ],
   type: 1,
   integration_types: [0, 1],
   contexts: [0, 1, 2],
 };
 
-// Command containing options
-const CHALLENGE_COMMAND = {
-  name: 'challenge',
-  description: 'Challenge to a match of rock paper scissors',
+// Converting times in messages
+const TIME_COMMAND = {
+  name: 'time',
+  description: 'Convert times in a message to your timezone or specified timezone',
   options: [
     {
       type: 3,
-      name: 'object',
-      description: 'Pick your object',
-      required: true,
-      choices: createCommandChoices(),
+      name: 'message',
+      description: 'Message containing times to convert',
+      required: true
     },
+    {
+      type: 3,
+      name: 'timezone',
+      description: 'Target timezone (optional - uses your personal timezone if not provided)',
+      required: false
+    }
   ],
   type: 1,
   integration_types: [0, 1],
-  contexts: [0, 2],
+  contexts: [0, 1, 2],
 };
 
-const ALL_COMMANDS = [TEST_COMMAND, CHALLENGE_COMMAND];
-
+const ALL_COMMANDS = [TIMEZONE_COMMAND, TIME_COMMAND];
 InstallGlobalCommands(process.env.APP_ID, ALL_COMMANDS);

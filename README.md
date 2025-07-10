@@ -1,108 +1,108 @@
-# Getting Started app for Discord
+# Discord Timezone Bot
 
-This project contains a basic rock-paper-scissors-style Discord app written in JavaScript, built for the [getting started guide](https://discord.com/developers/docs/getting-started).
+A simple, clean Discord bot that converts times between timezones. Set your timezone once, then easily convert any times you see in messages.
 
-![Demo of app](https://github.com/discord/discord-example-app/raw/main/assets/getting-started-demo.gif?raw=true)
+## Commands
 
-## Project structure
-Below is a basic overview of the project structure:
+**`/timezone <timezone>`** - Set your personal timezone  
+**`/time <message> [timezone]`** - Convert times in a message
 
-```
-├── examples    -> short, feature-specific sample apps
-│   ├── app.js  -> finished app.js code
-│   ├── button.js
-│   ├── command.js
-│   ├── modal.js
-│   ├── selectMenu.js
-├── .env.sample -> sample .env file
-├── app.js      -> main entrypoint for app
-├── commands.js -> slash command payloads + helpers
-├── game.js     -> logic specific to RPS
-├── utils.js    -> utility functions and enums
-├── package.json
-├── README.md
-└── .gitignore
-```
-
-## Running app locally
-
-Before you start, you'll need to install [NodeJS](https://nodejs.org/en/download/) and [create a Discord app](https://discord.com/developers/applications) with the proper permissions:
-- `applications.commands`
-- `bot` (with Send Messages enabled)
-
-
-Configuring the app is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
-
-### Setup project
-
-First clone the project:
-```
-git clone https://github.com/discord/discord-example-app.git
-```
-
-Then navigate to its directory and install dependencies:
-```
-cd discord-example-app
-npm install
-```
-### Get app credentials
-
-Fetch the credentials from your app's settings and add them to a `.env` file (see `.env.sample` for an example). You'll need your app ID (`APP_ID`), bot token (`DISCORD_TOKEN`), and public key (`PUBLIC_KEY`).
-
-Fetching credentials is covered in detail in the [getting started guide](https://discord.com/developers/docs/getting-started).
-
-> 🔑 Environment variables can be added to the `.env` file in Glitch or when developing locally, and in the Secrets tab in Replit (the lock icon on the left).
-
-### Install slash commands
-
-The commands for the example app are set up in `commands.js`. All of the commands in the `ALL_COMMANDS` array at the bottom of `commands.js` will be installed when you run the `register` command configured in `package.json`:
+## Examples
 
 ```
-npm run register
+/timezone EST
+/time "Meeting at 3 PM PST"
+→ Meeting at 3 PM PST → 6:00 PM EST
+
+/time "Call tomorrow at 2 PM GMT" "JST" 
+→ Call tomorrow at 2 PM GMT → 11:00 PM JST
 ```
 
-### Run the app
+## Supported Formats
 
-After your credentials are added, go ahead and run the app:
+**Times**: `3:00 PM`, `15:30`, `3 PM EST`, `at 3pm`  
+**Timezones**: `EST`, `PST`, `America/New_York`, `UTC-5`, `+0530`
 
-```
-node app.js
-```
+## Setup
 
-> ⚙️ A package [like `nodemon`](https://github.com/remy/nodemon), which watches for local changes and restarts your app, may be helpful while locally developing.
+1. `npm install`
+2. Create `.env` with your Discord credentials
+3. `npm run register` 
+4. `npm start`
 
-If you aren't following the [getting started guide](https://discord.com/developers/docs/getting-started), you can move the contents of `examples/app.js` (the finished `app.js` file) to the top-level `app.js`.
+## Supported Time Formats
 
-### Set up interactivity
+The bot can detect and parse various time formats:
 
-The project needs a public endpoint where Discord can send requests. To develop and test locally, you can use something like [`ngrok`](https://ngrok.com/) to tunnel HTTP traffic.
+- **12-hour format**: `3:00 PM`, `3 PM`, `3:30 AM`
+- **24-hour format**: `15:00`, `09:30`, `23:45`
+- **With timezones**: `3 PM EST`, `15:00 UTC`, `2:30 AM PST`
+- **With context words**: `at 3pm`, `around 15:30`, `before 2 PM`
 
-Install ngrok if you haven't already, then start listening on port `3000`:
+## Supported Timezone Formats
 
-```
-ngrok http 3000
-```
+- **Abbreviations**: EST, PST, GMT, UTC, CET, JST, IST, AEST
+- **IANA zones**: America/New_York, Europe/London, Asia/Tokyo
+- **UTC offsets**: UTC-5, UTC+5:30, +0530, -0800
 
-You should see your connection open:
+## Setup
 
-```
-Tunnel Status                 online
-Version                       2.0/2.0
-Web Interface                 http://127.0.0.1:4040
-Forwarding                    https://1234-someurl.ngrok.io -> localhost:3000
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Connections                  ttl     opn     rt1     rt5     p50     p90
-                              0       0       0.00    0.00    0.00    0.00
-```
+2. Set up environment variables in `.env`:
+   ```
+   APP_ID=your_discord_app_id
+   PUBLIC_KEY=your_discord_public_key
+   BOT_TOKEN=your_discord_bot_token
+   ```
 
-Copy the forwarding address that starts with `https`, in this case `https://1234-someurl.ngrok.io`, then go to your [app's settings](https://discord.com/developers/applications).
+3. Register commands with Discord:
+   ```bash
+   npm run register
+   ```
 
-On the **General Information** tab, there will be an **Interactions Endpoint URL**. Paste your ngrok address there, and append `/interactions` to it (`https://1234-someurl.ngrok.io/interactions` in the example).
+4. Start the bot:
+   ```bash
+   npm start
+   ```
 
-Click **Save Changes**, and your app should be ready to run 🚀
+## Usage Examples
 
-## Other resources
-- Read **[the documentation](https://discord.com/developers/docs/intro)** for in-depth information about API features.
-- Browse the `examples/` folder in this project for smaller, feature-specific code examples
-- Join the **[Discord Developers server](https://discord.gg/discord-developers)** to ask questions about the API, attend events hosted by the Discord API team, and interact with other devs.
-- Check out **[community resources](https://discord.com/developers/docs/topics/community-resources#community-resources)** for language-specific tools maintained by community members.
+### Personal Timezone Setup
+1. Set your timezone: `/timezone EST`
+2. Now you can use `/time` or right-click messages to get times in your timezone
+
+### Message Reply Workflow
+1. Someone posts: "Team meeting tomorrow at 3 PM PST"
+2. Reply to their message with: `/time`
+3. Get ephemeral response: "🕐 **3 PM PST** → **6:00 PM EST**"
+
+### Universal Translation
+1. Someone posts: "Deadline is 5 PM GMT"
+2. Reply with: `/translate JST`
+3. Get ephemeral response: "🌍 **5 PM GMT** → **2:00 AM JST** (Saturday, January 11th)"
+
+### Context Menu
+1. Right-click any message containing times
+2. Select "Convert to my timezone"
+3. Get instant ephemeral conversion to your personal timezone
+
+## Privacy
+
+- All timezone conversions are sent as ephemeral messages (only visible to you)
+- User timezone preferences are stored locally in `timezones.json`
+- No message content is logged or stored permanently
+
+## Dependencies
+
+- `discord-interactions`: Discord API interactions
+- `express`: Web server for webhook handling
+- `moment-timezone`: Timezone conversion and parsing
+- `dotenv`: Environment variable management
+
+## License
+
+MIT License - see LICENSE file for details.
