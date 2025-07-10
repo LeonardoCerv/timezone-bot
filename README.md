@@ -1,34 +1,27 @@
 # Discord Timezone Bot
 
-A simple, clean Discord bot that converts times between timezones. Set your timezone once, then easily convert any times you see in messages.
+A Discord bot that converts times between timezones using slash commands and emoji reactions.
 
-## Commands
+## Features
 
-**`/timezone <timezone>`** - Set your personal timezone  
-**`/time <message> [timezone]`** - Convert times in a message
+### Slash Commands
+- `/timezone <timezone>` - Set your personal timezone
+- `/time <message> [timezone]` - Convert times in a message to your timezone (or specified timezone)
 
-## Examples
+### Emoji Reactions 🆕
+React to any message containing times with time-related emojis to get instant timezone conversions:
+- 🕐 (clock face)
+- ⏰ (alarm clock) 
+- ⏳ (hourglass)
+- ⏲️ (timer)
 
-```
-/timezone EST
-/time "Meeting at 3 PM PST"
-→ Meeting at 3 PM PST → 6:00 PM EST
-
-/time "Call tomorrow at 2 PM GMT" "JST" 
-→ Call tomorrow at 2 PM GMT → 11:00 PM JST
-```
+The bot will DM you the converted times in your timezone. Set your timezone first with `/timezone`!
 
 ## Supported Formats
 
 **Times**: `3:00 PM`, `15:30`, `3 PM EST`, `at 3pm`  
 **Timezones**: `EST`, `PST`, `America/New_York`, `UTC-5`, `+0530`
 
-## Setup
-
-1. `npm install`
-2. Create `.env` with your Discord credentials
-3. `npm run register` 
-4. `npm start`
 
 ## Supported Time Formats
 
@@ -45,63 +38,17 @@ The bot can detect and parse various time formats:
 - **IANA zones**: America/New_York, Europe/London, Asia/Tokyo
 - **UTC offsets**: UTC-5, UTC+5:30, +0530, -0800
 
-## Setup
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Set up environment variables in `.env`:
-   ```
-   APP_ID=your_discord_app_id
-   PUBLIC_KEY=your_discord_public_key
-   BOT_TOKEN=your_discord_bot_token
-   ```
-
-3. Register commands with Discord:
-   ```bash
-   npm run register
-   ```
-
-4. Start the bot:
-   ```bash
-   npm start
-   ```
-
 ## Usage Examples
 
 ### Personal Timezone Setup
 1. Set your timezone: `/timezone EST`
-2. Now you can use `/time` or right-click messages to get times in your timezone
+2. Use `/time` command: `/time "Meeting at 3 PM GMT"`
+3. **OR** React to any message containing times with 🕐, ⏰, ⏳, or ⏲️ for instant conversion
 
-### Message Reply Workflow
-1. Someone posts: "Team meeting tomorrow at 3 PM PST"
-2. Reply to their message with: `/time`
-3. Get ephemeral response: "🕐 **3 PM PST** → **6:00 PM EST**"
-
-### Universal Translation
-1. Someone posts: "Deadline is 5 PM GMT"
-2. Reply with: `/translate JST`
-3. Get ephemeral response: "🌍 **5 PM GMT** → **2:00 AM JST** (Saturday, January 11th)"
-
-### Context Menu
-1. Right-click any message containing times
-2. Select "Convert to my timezone"
-3. Get instant ephemeral conversion to your personal timezone
-
-## Privacy
-
-- All timezone conversions are sent as ephemeral messages (only visible to you)
-- User timezone preferences are stored locally in `timezones.json`
-- No message content is logged or stored permanently
-
-## Dependencies
-
-- `discord-interactions`: Discord API interactions
-- `express`: Web server for webhook handling
-- `moment-timezone`: Timezone conversion and parsing
-- `dotenv`: Environment variable management
+### Quick Reaction Conversion
+1. Someone posts: "Let's meet at 3 PM EST tomorrow"
+2. React with ⏰ emoji
+3. Get a DM with: "⏰ **Times converted to your timezone (PST):** **3 PM EST** → **12:00 PM PST**"
 
 ## License
 

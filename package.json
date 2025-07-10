@@ -1,23 +1,29 @@
 {
   "name": "discord-timezone-bot",
-  "private": true,
   "version": "1.0.0",
   "description": "Discord bot for personal timezone conversion using slash commands",
   "main": "app.js",
   "type": "module",
-  "engines": {
-    "node": ">=18.x"
-  },
   "scripts": {
     "start": "node app.js",
-    "register": "node commands.js"
+    "register": "node commands.js",
+    "dev": "nodemon app.js"
   },
   "author": "Leonardo Cervantes",
   "license": "MIT",
   "dependencies": {
-    "discord-interactions": "^4.0.0",
+    "discord-interactions": "^3.4.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
-    "moment-timezone": "^0.5.45"
+    "moment": "^2.29.4",
+    "moment-timezone": "^0.5.43",
+    "node-fetch": "^3.3.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

@@ -15,6 +15,7 @@ import {
   normalizeTimezone,
   extractTimesFromMessage
 } from './timezone.js';
+import { gatewayClient } from './gateway-client.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,7 +27,6 @@ app.use(express.json());
  * If targetTimezone is provided, converts to that specific timezone
  */
 function handleTimeConversion(userId, messageContent, targetTimezone = null) {
-
   const timezone = targetTimezone || getUserTimezone(userId);
   
   // check if there is a timezone
@@ -86,11 +86,11 @@ function handleTimeConversion(userId, messageContent, targetTimezone = null) {
 /**
  * Helper func to create responses
  */
-function createResponse(message) {
+function createResponse(message, ephemeral = true) {
   return {
     type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
     data: {
-      flags: InteractionResponseFlags.EPHEMERAL,
+      flags: ephemeral ? InteractionResponseFlags.EPHEMERAL : undefined,
       content: message
     }
   };
@@ -123,8 +123,8 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
       
       const success = setUserTimezone(userId, timezoneInput);
       const message = success 
-        ? `✅ Timezone set to **${timezoneInput}**. Now use \`/time\` to convert times!`
-        : "Failed to save timezone. Please try again.";
+        ? `✅ Timezone set to **${timezoneInput}**. Now use \`/time\` to convert times or react to messages with ⏰!`
+        : "❌ Failed to save timezone. Please try again.";
         
       return res.send(createResponse(message));
     }
@@ -151,6 +151,15 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), async fun
   return res.status(400).json({ error: 'unknown interaction type' });
 });
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`Bot listening on port ${PORT}`);
@@ -158,4 +167,30 @@ app.listen(PORT, () => {
   console.log('  /timezone EST - Set your timezone');
   console.log('  /time "Meeting at 3 PM EST" - Convert to your timezone');
   console.log('  /time "Call at 2 PM GMT" "PST" - Convert to specific timezone');
+  console.log('');
+  console.log('Reaction features:');
+  console.log('  React with ⏱️ to any message containing times');
+  console.log('  Bot will DM you the converted times in your timezone');
+  console.log('');
+  console.log('Endpoints:');
+  console.log('  POST /interactions - Discord interactions');
+  console.log('  GET /health - Health check');
+  console.log('');
+  
+  // Start the gateway client for handling reactions
+  console.log('Starting Discord Gateway Client for reactions...');
+  gatewayClient.connect();
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n❌ Shutting down bot...');
+  gatewayClient.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n❌ Shutting down bot...');
+  gatewayClient.disconnect();
+  process.exit(0);
 });
