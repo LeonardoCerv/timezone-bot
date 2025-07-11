@@ -1,2 +1,8 @@
-node_modules
+# Environment files
+Discord/.env
+Discord/node_modules/
+Slack/.env
+
+
+# General environment files
 .env
