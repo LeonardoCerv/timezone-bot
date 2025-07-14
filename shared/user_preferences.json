@@ -13,9 +13,9 @@
   },
   "slack": {
     "U095AHEMJGJ": {
-      "timezone": "America/New_York",
-      "displayName": "est",
-      "lastUpdated": "2025-07-13T12:00:00.000Z"
+      "timezone": "America/Chicago",
+      "displayName": "cst",
+      "lastUpdated": "2025-07-13T23:50:56.850036"
     },
     "slack_test123": {
       "timezone": "Europe/London",
@@ -25,9 +25,9 @@
   },
   "telegram": {
     "5105561661": {
-      "timezone": "America/New_York",
-      "displayName": "America/New_York",
-      "lastUpdated": "2025-07-11T15:20:03.388505"
+      "timezone": "GMT",
+      "displayName": "gmt",
+      "lastUpdated": "2025-07-14T00:02:27.901360"
     },
     "456789": {
       "timezone": "Asia/Tokyo",

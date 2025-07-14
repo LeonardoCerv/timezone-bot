@@ -2,7 +2,7 @@ import os
 import re
 import json
 import pytz
-from datetime import datetime, time
+from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from dotenv import load_dotenv
@@ -188,18 +188,33 @@ def parse_time(time_str, context_tz='UTC'):
     
     # Clean up time string
     clean_time = re.sub(r'\b(at|around|by|before|after)\s+', '', time_str, flags=re.IGNORECASE)
-    clean_time = re.sub(r'\b([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
+    # Be more careful about removing timezone - don't remove AM/PM
+    clean_time = re.sub(r'\b(?!AM|PM)([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
     
     try:
         # Parse different formats
         if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
             dt = datetime.strptime(clean_time.upper(), '%I:%M %p')
-        elif re.match(r'^\d{1,2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
+        elif re.match(r'^\d{1,2}\s+(AM|PM)$', clean_time, re.IGNORECASE):
             dt = datetime.strptime(clean_time.upper(), '%I %p')
+        elif re.match(r'^\d{1,2}(AM|PM)$', clean_time, re.IGNORECASE):
+            # Handle cases like "3pm" without space
+            normalized = re.sub(r'(\d+)(AM|PM)', r'\1 \2', clean_time, flags=re.IGNORECASE)
+            dt = datetime.strptime(normalized.upper(), '%I %p')
         elif re.match(r'^\d{1,2}:\d{2}$', clean_time):
             dt = datetime.strptime(clean_time, '%H:%M')
         else:
-            return None
+            # Try some additional formats as fallback
+            formats = ['%I:%M:%S %p', '%H:%M:%S', '%I %p', '%H:%M']
+            dt = None
+            for fmt in formats:
+                try:
+                    dt = datetime.strptime(clean_time.upper(), fmt)
+                    break
+                except ValueError:
+                    continue
+            if dt is None:
+                return None
         
         # Create timezone-aware datetime for today
         tz = pytz.timezone(timezone)

@@ -183,18 +183,33 @@ def parse_time(time_str, context_tz='UTC'):
     
     # Clean up time string
     clean_time = re.sub(r'\b(at|around|by|before|after)\s+', '', time_str, flags=re.IGNORECASE)
-    clean_time = re.sub(r'\b([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
+    # Be more careful about removing timezone - don't remove AM/PM
+    clean_time = re.sub(r'\b(?!AM|PM)([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
     
     try:
         # Parse different formats
         if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
             dt = datetime.strptime(clean_time.upper(), '%I:%M %p')
-        elif re.match(r'^\d{1,2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
+        elif re.match(r'^\d{1,2}\s+(AM|PM)$', clean_time, re.IGNORECASE):
             dt = datetime.strptime(clean_time.upper(), '%I %p')
+        elif re.match(r'^\d{1,2}(AM|PM)$', clean_time, re.IGNORECASE):
+            # Handle cases like "3pm" without space
+            normalized = re.sub(r'(\d+)(AM|PM)', r'\1 \2', clean_time, flags=re.IGNORECASE)
+            dt = datetime.strptime(normalized.upper(), '%I %p')
         elif re.match(r'^\d{1,2}:\d{2}$', clean_time):
             dt = datetime.strptime(clean_time, '%H:%M')
         else:
-            return None
+            # Try some additional formats as fallback
+            formats = ['%I:%M:%S %p', '%H:%M:%S', '%I %p', '%H:%M']
+            dt = None
+            for fmt in formats:
+                try:
+                    dt = datetime.strptime(clean_time.upper(), fmt)
+                    break
+                except ValueError:
+                    continue
+            if dt is None:
+                return None
         
         # Create timezone-aware datetime for today
         tz = pytz.timezone(timezone)
@@ -260,25 +275,25 @@ Send "Meeting at 3:00PM EST" and I'll convert it to your timezone."""
 
 @bot.message_handler(commands=['help'])
 def send_help(message):
-    help_text = response_messages.get('help', {}).get('content', """**Commands:**
-/timezone <timezone> - Set your timezone
-/time <time> - Convert a time
-/mytimezone - Show your timezone
-/help - Show this help
+    help_text = """**Commands**:
+• `/timezone <timezone>` - Set your timezone
+• `/convert <time>` - Convert a time
+• `/mytimezone` - Show your timezone
+• `/help` - Show this help
 
-**Formats:**
-• 4 PM EST - 12-hour with timezone
-• 4:30 PM PST - 12-hour with minutes  
-• 16:30 GMT - 24-hour format
-• 14:00 UTC - 24-hour format
+**Formats**:
+• `4 PM EST` - 12-hour with timezone
+• `4:30 PM PST` - 12-hour with minutes  
+• `16:30 GMT` - 24-hour format
+• `14:00 UTC` - 24-hour format
 
-**Timezones:**
-• EST, PST, GMT, UTC, etc.
-• America/New_York, Europe/London
-• UTC-5, UTC+3
+**Timezones**:
+• `EST`, `PST`, `GMT`, `UTC`, etc.
+• `America/New_York`, `Europe/London`
+• `UTC-5`, `UTC+3`
 
-**Auto-detection:**
-I detect times in messages and convert them automatically.""")
+**Auto-detection**:
+I detect times in messages and convert them automatically."""
     
     bot.reply_to(message, help_text, parse_mode="Markdown")
 
