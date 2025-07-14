@@ -20,95 +20,98 @@ SUCCESS_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installation Successful - Timezone Bot</title>
+    <title>installation successful</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+            background: #f8f8f8;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .container {
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            padding: 3rem 2rem;
             max-width: 500px;
-            margin: 20px;
-        }
-        .success-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
+            margin: 2rem;
         }
         h1 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 2rem;
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 500;
+            letter-spacing: -0.015em;
         }
         p {
-            color: #5a6c7d;
-            line-height: 1.6;
-            margin-bottom: 15px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
         }
-        .feature-list {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: left;
+        .commands {
+            background: #1a1a1a;
+            color: #e5e5e5;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
         }
-        .feature-list h3 {
-            color: #2c3e50;
+        .commands h3 {
+            color: #e5e5e5;
             margin-top: 0;
-            margin-bottom: 15px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            font-size: 1rem;
         }
-        .feature-list ul {
+        .commands ul {
             margin: 0;
-            padding-left: 20px;
+            padding-left: 1rem;
+            list-style: none;
         }
-        .feature-list li {
-            margin-bottom: 8px;
-            color: #5a6c7d;
+        .commands li {
+            margin-bottom: 0.5rem;
+            color: #e5e5e5;
+            font-size: 0.875rem;
         }
-        .back-to-slack {
+        .commands code {
+            background: none;
+            color: #e5e5e5;
+            padding: 0;
+        }
+        .back-link {
             display: inline-block;
-            background: #4a90e2;
-            color: white;
+            color: #1a1a1a;
             text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            margin-top: 20px;
-            transition: background 0.3s;
+            font-size: 0.875rem;
+            border-bottom: 1px solid #1a1a1a;
+            padding-bottom: 1px;
+            margin-top: 1rem;
         }
-        .back-to-slack:hover {
-            background: #357abd;
+        .back-link:hover {
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="success-icon">🎉</div>
-        <h1>Installation Successful!</h1>
-        <p>Your Timezone Bot has been successfully installed to your Slack workspace.</p>
+        <h1>installation successful</h1>
+        <p>timezone bot has been added to your slack workspace.</p>
         
-        <div class="feature-list">
-            <h3>What you can do now:</h3>
+        <div class="commands">
+            <h3>available commands:</h3>
             <ul>
-                <li>Set your timezone with: <code>/timezone set EST</code></li>
-                <li>Convert times automatically when mentioned in messages</li>
-                <li>Get timezone help with: <code>/timezone help</code></li>
-                <li>View your current timezone with: <code>/timezone show</code></li>
+                <li>/timezone set EST</li>
+                <li>/timezone show</li>
+                <li>/timezone help</li>
             </ul>
         </div>
         
-        <p>The bot will automatically detect and convert times mentioned in your messages to your preferred timezone.</p>
+        <p>the bot will automatically detect and convert times mentioned in messages to your preferred timezone.</p>
         
-        <a href="slack://open" class="back-to-slack">Back to Slack</a>
+        <a href="slack://open" class="back-link">back to slack →</a>
     </div>
 </body>
 </html>
@@ -121,64 +124,59 @@ ERROR_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installation Error - Timezone Bot</title>
+    <title>installation error</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            background: #f8f8f8;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .container {
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            padding: 3rem 2rem;
             max-width: 500px;
-            margin: 20px;
-        }
-        .error-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
+            margin: 2rem;
         }
         h1 {
-            color: #e74c3c;
-            margin-bottom: 20px;
-            font-size: 2rem;
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 500;
+            letter-spacing: -0.015em;
         }
         p {
-            color: #5a6c7d;
-            line-height: 1.6;
-            margin-bottom: 15px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
         }
         .try-again {
             display: inline-block;
-            background: #e74c3c;
-            color: white;
+            color: #1a1a1a;
             text-decoration: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            margin-top: 20px;
-            transition: background 0.3s;
+            font-size: 0.875rem;
+            border-bottom: 1px solid #1a1a1a;
+            padding-bottom: 1px;
+            margin-top: 1rem;
         }
         .try-again:hover {
-            background: #c0392b;
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="error-icon">❌</div>
-        <h1>Installation Failed</h1>
-        <p>Something went wrong during the installation process.</p>
-        <p>Please try installing the app again, or contact support if the problem persists.</p>
+        <h1>installation failed</h1>
+        <p>something went wrong during the installation process.</p>
+        <p>please try installing the app again, or contact support if the problem persists.</p>
         
-        <a href="/install" class="try-again">Try Again</a>
+        <a href="/install" class="try-again">try again →</a>
     </div>
 </body>
 </html>
@@ -191,105 +189,97 @@ INSTALL_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Install Timezone Bot</title>
+    <title>install timezone bot</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f8f8f8;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         .container {
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            padding: 3rem 2rem;
             max-width: 600px;
-            margin: 20px;
-        }
-        .bot-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
+            margin: 2rem;
         }
         h1 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 2.5rem;
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+            font-weight: 400;
+            letter-spacing: -0.025em;
         }
         .description {
-            color: #5a6c7d;
-            line-height: 1.6;
-            margin-bottom: 30px;
-            font-size: 1.1rem;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
         }
         .features {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 30px;
-            margin: 30px 0;
-            text-align: left;
+            background: #1a1a1a;
+            color: #e5e5e5;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
         }
         .features h3 {
-            color: #2c3e50;
+            color: #e5e5e5;
             margin-top: 0;
-            margin-bottom: 20px;
-            text-align: center;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            font-size: 1rem;
         }
         .features ul {
             margin: 0;
-            padding-left: 20px;
+            padding-left: 1rem;
+            list-style: none;
         }
         .features li {
-            margin-bottom: 12px;
-            color: #5a6c7d;
-            font-size: 1rem;
+            margin-bottom: 0.75rem;
+            color: #e5e5e5;
+            font-size: 0.875rem;
+            line-height: 1.4;
         }
         .install-button {
             display: inline-block;
-            background: #4a90e2;
-            color: white;
+            color: #1a1a1a;
             text-decoration: none;
-            padding: 15px 30px;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-top: 20px;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+            font-size: 0.875rem;
+            border-bottom: 1px solid #1a1a1a;
+            padding-bottom: 1px;
+            margin-top: 1.5rem;
         }
         .install-button:hover {
-            background: #357abd;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="bot-icon">🌍</div>
-        <h1>Timezone Bot</h1>
-        <p class="description">Automatically convert times to your preferred timezone in Slack conversations.</p>
+        <h1>timezone bot</h1>
+        <p class="description">automatically convert times to your preferred timezone in slack conversations</p>
         
         <div class="features">
-            <h3>✨ Features</h3>
+            <h3>features</h3>
             <ul>
-                <li><strong>Automatic Time Conversion:</strong> Detects times in messages and shows them in your timezone</li>
-                <li><strong>Personal Timezone Settings:</strong> Set your preferred timezone once and forget about it</li>
-                <li><strong>Multiple Format Support:</strong> Works with 12-hour, 24-hour, and timezone-specific formats</li>
-                <li><strong>Easy Commands:</strong> Simple slash commands to manage your timezone preferences</li>
-                <li><strong>Cross-Platform:</strong> Works seamlessly across all Slack clients</li>
+                <li>automatic time conversion: detects times in messages and shows them in your timezone</li>
+                <li>personal timezone settings: set your preferred timezone once and forget about it</li>
+                <li>multiple format support: works with 12-hour, 24-hour, and timezone-specific formats</li>
+                <li>simple commands: easy slash commands to manage your timezone preferences</li>
+                <li>cross-platform: works seamlessly across all slack clients</li>
             </ul>
         </div>
         
-        <p>Ready to never miss a meeting due to timezone confusion again?</p>
+        <p>ready to never miss a meeting due to timezone confusion again?</p>
         
         <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=chat:write,commands&user_scope=&redirect_uri={{ redirect_uri }}" class="install-button">
-            Add to Slack
+            add to slack →
         </a>
     </div>
 </body>
