@@ -11,7 +11,7 @@ app = Flask(__name__)
 # OAuth endpoints for Slack
 SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
 SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET")
-SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "http://localhost:3000/oauth")
+SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "http://localhost:8944/oauth")
 
 # Template for success page
 SUCCESS_TEMPLATE = """
@@ -402,8 +402,8 @@ if __name__ == '__main__':
         exit(1)
     
     print("Starting OAuth server...")
-    print(f"Install URL: http://localhost:3000/install")
+    print(f"Install URL: http://localhost:8944/install")
     print(f"OAuth Redirect URI: {SLACK_REDIRECT_URI}")
     
     # Run the Flask app
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    app.run(host='0.0.0.0', port=8944, debug=True)
