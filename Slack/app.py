@@ -1,8 +1,7 @@
-# Timezone Bot for Slack - Automatically converts times between timezones
 import os
 import re
-import pytz
 import json
+import pytz
 from datetime import datetime, time
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -10,336 +9,417 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
+# File paths
+USER_PREFS_PATH = '../shared/user_preferences.json'
+SHARED_TIMEZONES_PATH = '../shared/timezones.json'
+RESPONSE_MESSAGES_PATH = '../shared/response_messages.json'
 
-DEFAULT_TIMEZONE = os.environ.get("DEFAULT_TIMEZONE", "America/New_York")
+# Load shared timezone config
+timezone_config = {'aliases': {}, 'popular': []}
+try:
+    if os.path.exists(SHARED_TIMEZONES_PATH):
+        with open(SHARED_TIMEZONES_PATH, 'r') as f:
+            timezone_config = json.load(f)
+except Exception as error:
+    print(f'Failed to load timezone config: {error}')
 
-# Common timezone abbreviations mapping
-TIMEZONE_MAPPING = {
-    'EST': 'America/New_York',
-    'EDT': 'America/New_York',
-    'CST': 'America/Chicago',
-    'CDT': 'America/Chicago',
-    'MST': 'America/Denver',
-    'MDT': 'America/Denver',
-    'PST': 'America/Los_Angeles',
-    'PDT': 'America/Los_Angeles',
-    'GMT': 'GMT',
-    'UTC': 'UTC',
-    'BST': 'Europe/London',
-    'CET': 'Europe/Paris',
-    'CEST': 'Europe/Paris',
-    'JST': 'Asia/Tokyo',
-    'IST': 'Asia/Kolkata',
-    'AEST': 'Australia/Sydney',
-    'AEDT': 'Australia/Sydney',
-    'SGT': 'Asia/Singapore',
-    'HKT': 'Asia/Hong_Kong',
-    'KST': 'Asia/Seoul',
-    'WET': 'Europe/Lisbon',
-    'EET': 'Europe/Athens',
-    'CAT': 'Africa/Cairo',
-    'WAT': 'Africa/Lagos',
-    'NZST': 'Pacific/Auckland',
-    'NZDT': 'Pacific/Auckland',
-}
+# Load shared response messages
+response_messages = {}
+try:
+    if os.path.exists(RESPONSE_MESSAGES_PATH):
+        with open(RESPONSE_MESSAGES_PATH, 'r') as f:
+            response_messages = json.load(f)
+except Exception as error:
+    print(f'Failed to load response messages: {error}')
 
-USER_PREFERENCES_FILE = 'user_preferences.json'
+# Format messages for Slack (convert **bold** to *bold*)
+def format_for_slack(message):
+    return message.replace('**', '*')
 
-def load_user_preferences():
+# Database functions
+def init_user_prefs():
+    if not os.path.exists(USER_PREFS_PATH):
+        with open(USER_PREFS_PATH, 'w') as f:
+            json.dump({'discord': {}, 'slack': {}, 'telegram': {}}, f, indent=2)
+
+def read_user_prefs():
     try:
-        if os.path.exists(USER_PREFERENCES_FILE):
-            with open(USER_PREFERENCES_FILE, 'r') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"Oops, couldn't load user settings: {e}")
-    return {}
+        if not os.path.exists(USER_PREFS_PATH):
+            init_user_prefs()
+        with open(USER_PREFS_PATH, 'r') as f:
+            full_data = json.load(f)
+            return {'users': full_data.get('slack', {})}
+    except Exception as error:
+        print(f'Error reading user preferences: {error}')
+        return {'users': {}}
 
-def save_user_preferences(preferences):
+def write_user_prefs(data):
     try:
-        with open(USER_PREFERENCES_FILE, 'w') as f:
-            json.dump(preferences, f, indent=2)
-    except Exception as e:
-        print(f"Oops, couldn't save user settings: {e}")
+        # Read existing data first
+        full_data = {'discord': {}, 'slack': {}, 'telegram': {}}
+        if os.path.exists(USER_PREFS_PATH):
+            with open(USER_PREFS_PATH, 'r') as f:
+                full_data = json.load(f)
+        
+        # Update only the slack section
+        full_data['slack'] = data.get('users', {})
+        
+        with open(USER_PREFS_PATH, 'w') as f:
+            json.dump(full_data, f, indent=2)
+        return True
+    except Exception as error:
+        print(f'Error writing user preferences: {error}')
+        return False
 
-USER_TIMEZONES = load_user_preferences()
-
-class TimezoneBot:
-    def __init__(self, default_tz=DEFAULT_TIMEZONE):
-        self.default_tz = default_tz
-        
-    def extract_times_from_text(self, text):
-        """Find all the times mentioned in a message"""
-        # Regex patterns for different time formats
-        patterns = [
-            r'(\d{1,2}):(\d{2})\s*(am|pm)\s*([A-Z]{3,4})',  # "4:30 PM EST"
-            r'(\d{1,2}):(\d{2})\s*(am|pm)(?!\s*[A-Z]{3,4})', # "4:30 PM" (no timezone)
-            r'(\d{1,2})\s*(am|pm)\s*([A-Z]{3,4})',          # "4 PM EST" 
-            r'(\d{1,2})\s*(am|pm)(?!\s*[A-Z]{3,4})',        # "4 PM" (no timezone)
-            r'(\d{1,2}):(\d{2})\s*([A-Z]{3,4})',            # "16:30 EST" (24-hour)
-        ]
-        
-        found_times = []
-        
-        for pattern in patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                found_times.append({
-                    'full_match': match.group(0),
-                    'groups': match.groups(),
-                    'start': match.start(),
-                    'end': match.end()
-                })
-        
-        # Remove overlapping matches and sort by position
-        found_times.sort(key=lambda x: x['start'])
-        unique_times = []
-        
-        for time_match in found_times:
-            overlap = False
-            for existing in unique_times:
-                if (time_match['start'] < existing['end'] and 
-                    time_match['end'] > existing['start']):
-                    overlap = True
-                    break
-            if not overlap:
-                unique_times.append(time_match)
-        
-        return unique_times
-    
-    def parse_time_string(self, time_groups):
-        """Parse time components from regex groups"""
-        groups = [g for g in time_groups if g is not None]
-        
-        if len(groups) == 4:  # "4:30 PM EST"
-            hour, minute, ampm, tz = groups
-            return int(hour), int(minute), ampm.upper(), tz.upper()
-            
-        elif len(groups) == 3:
-            if groups[2].upper() in TIMEZONE_MAPPING:  # "16:30 EST"
-                hour, minute, tz = groups
-                return int(hour), int(minute), None, tz.upper()
-            elif groups[2].upper() in ['AM', 'PM']:  # "4:30 PM"
-                hour, minute, ampm = groups
-                return int(hour), int(minute), ampm.upper(), None
-            else:  # "4 PM EST"
-                hour, ampm, tz = groups
-                return int(hour), 0, ampm.upper(), tz.upper()
-                
-        elif len(groups) == 2:  # "4 PM" or "16:30"
-            if groups[1].upper() in ['AM', 'PM']:
-                hour, ampm = groups
-                return int(hour), 0, ampm.upper(), None
-            else:
-                hour, minute = groups
-                return int(hour), int(minute), None, None
-        
-        return None, None, None, None
-    
-    def convert_to_24hour(self, hour, minute, ampm):
-        """Convert 12-hour format to 24-hour format"""
-        if ampm == 'PM' and hour != 12:
-            hour += 12
-        elif ampm == 'AM' and hour == 12:
-            hour = 0  # 12 AM becomes midnight
-        return hour, minute
-    
-    def convert_timezone(self, hour, minute, from_tz, to_tz):
-        """Convert a time from one timezone to another"""
-        try:
-            from_timezone = pytz.timezone(from_tz)
-            to_timezone = pytz.timezone(to_tz)
-            
-            today = datetime.now().date()
-            dt = datetime.combine(today, time(hour, minute))
-            
-            dt_localized = from_timezone.localize(dt)
-            dt_converted = dt_localized.astimezone(to_timezone)
-            
-            return dt_converted
-        except Exception as e:
-            print(f"Oops, couldn't convert timezone: {e}")
-            return None
-    
-    def format_time_response(self, original_time, converted_time, target_tz):
-        if converted_time:
-            formatted_time = converted_time.strftime("%I:%M %p").lstrip('0')
-            tz_name = converted_time.strftime("%Z")
-            
-            if not tz_name:
-                tz_name = target_tz.split('/')[-1]
-            
-            return f"`{original_time}` → **{formatted_time} {tz_name}**"
+# Timezone utilities
+def normalize_timezone(input_tz):
+    if not input_tz:
         return None
     
-    def process_message(self, text, target_timezone=None):
-        """Main function - find times in a message and convert them"""
-        if not target_timezone:
-            target_timezone = self.default_tz
-            
-        found_times = self.extract_times_from_text(text)
-        conversions = []
+    # Check aliases first
+    alias = timezone_config['aliases'].get(input_tz.upper())
+    if alias:
+        return alias
+    
+    # Check if it's a valid pytz timezone
+    try:
+        pytz.timezone(input_tz)
+        return input_tz
+    except:
+        pass
+    
+    # Handle UTC offset formats (UTC-5, UTC+3:30)
+    offset_match = re.match(r'^(UTC)?([+-]\d{1,2}):?(\d{2})?$', input_tz, re.IGNORECASE)
+    if offset_match:
+        sign = '+' if offset_match.group(2).startswith('+') else '-'
+        hours = abs(int(offset_match.group(2)))
+        minutes = int(offset_match.group(3)) if offset_match.group(3) else 0
         
-        for time_match in found_times:
-            groups = time_match['groups']
-            original_text = time_match['full_match']
-            
-            hour, minute, ampm, source_tz = self.parse_time_string(groups)
-            
-            if hour is None:
-                continue
-            
-            # Convert 12-hour to 24-hour if needed
-            if ampm:
-                hour, minute = self.convert_to_24hour(hour, minute, ampm)
-            
-            # Skip if no timezone was mentioned
-            if source_tz and source_tz in TIMEZONE_MAPPING:
-                source_timezone = TIMEZONE_MAPPING[source_tz]
-            else:
-                continue
-            
-            # Skip if already in target timezone
-            if source_timezone == target_timezone:
-                continue
-            
-            converted_time = self.convert_timezone(hour, minute, source_timezone, target_timezone)
-            
-            if converted_time:
-                response = self.format_time_response(original_text, converted_time, target_timezone)
-                if response:
-                    conversions.append(response)
-        
-        return conversions
+        if hours <= 14 and minutes <= 59:
+            # Etc/GMT offsets are inverted
+            return f"Etc/GMT{'-' if sign == '+' else '+'}{hours}"
+    
+    return None
 
-timezone_bot = TimezoneBot()
+def set_user_timezone(user_id, timezone_input):
+    normalized_tz = normalize_timezone(timezone_input)
+    if not normalized_tz:
+        return False
+    
+    data = read_user_prefs()
+    data['users'][user_id] = {
+        'timezone': normalized_tz,
+        'displayName': timezone_input,
+        'lastUpdated': datetime.now().isoformat()
+    }
+    return write_user_prefs(data)
+
+def get_user_timezone(user_id):
+    data = read_user_prefs()
+    return data.get('users', {}).get(user_id, {}).get('timezone')
+
+# Time parsing and conversion
+def extract_times(content):
+    patterns = [
+        # With timezone: "3:00 PM EST", "2 PM PST"
+        r'\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b',
+        r'\b(\d{1,2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b',
+        # 12-hour: "3:00 PM", "3 PM"
+        r'\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\b',
+        r'\b(\d{1,2})\s*(AM|PM|am|pm)\b',
+        # 24-hour: "15:30", "09:00"
+        r'\b([01]?\d|2[0-3]):([0-5]\d)\b',
+        # With context: "at 3pm"
+        r'\b(at|around|by|before|after)\s+(\d{1,2}):?(\d{2})?\s*(AM|PM|am|pm)?\b'
+    ]
+    
+    times = []
+    spans = []
+    
+    for pattern in patterns:
+        for match in re.finditer(pattern, content, re.IGNORECASE):
+            start = match.start()
+            end = match.end()
+            
+            # Skip overlapping matches
+            overlaps = any(
+                (start >= span['start'] and start < span['end']) or
+                (end > span['start'] and end <= span['end']) or
+                (start <= span['start'] and end >= span['end'])
+                for span in spans
+            )
+            
+            if not overlaps:
+                times.append(match.group(0).strip())
+                spans.append({'start': start, 'end': end})
+    
+    return [t for t in times if len(t) >= 2 and not re.match(r'^\d{1,2}$', t.strip())]
+
+def parse_time(time_str, context_tz='UTC'):
+    if not time_str:
+        return None
+    
+    timezone = context_tz
+    
+    # Look for timezone in string
+    tz_match = re.search(r'\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b', time_str, re.IGNORECASE)
+    if tz_match:
+        normalized_tz = normalize_timezone(tz_match.group(1))
+        if normalized_tz:
+            timezone = normalized_tz
+    
+    # Clean up time string
+    clean_time = re.sub(r'\b(at|around|by|before|after)\s+', '', time_str, flags=re.IGNORECASE)
+    clean_time = re.sub(r'\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
+    
+    try:
+        # Parse different formats
+        if re.match(r'^\d{1,2}:\d{2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
+            dt = datetime.strptime(clean_time.upper(), '%I:%M %p')
+        elif re.match(r'^\d{1,2}\s*(AM|PM)$', clean_time, re.IGNORECASE):
+            dt = datetime.strptime(clean_time.upper(), '%I %p')
+        elif re.match(r'^\d{1,2}:\d{2}$', clean_time):
+            dt = datetime.strptime(clean_time, '%H:%M')
+        else:
+            return None
+        
+        # Create timezone-aware datetime for today
+        tz = pytz.timezone(timezone)
+        today = datetime.now(tz).date()
+        localized_dt = tz.localize(datetime.combine(today, dt.time()))
+        
+        return {'datetime': localized_dt, 'timezone': timezone}
+    except:
+        return None
+
+def convert_times(content, target_timezone):
+    found_times = extract_times(content)
+    if not found_times:
+        return []
+    
+    results = []
+    
+    for time_str in found_times:
+        parsed = parse_time(time_str, 'UTC')
+        if parsed:
+            target_tz = pytz.timezone(target_timezone)
+            converted = parsed['datetime'].astimezone(target_tz)
+            same_day = parsed['datetime'].date() == converted.date()
+            
+            results.append({
+                'original': time_str,
+                'converted': converted.strftime('%I:%M %p %Z').lstrip('0'),
+                'date': converted.strftime('%A, %B %d'),
+                'same_day': same_day
+            })
+    
+    return results
+
+# Slack app setup
+app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 @app.event("message")
 def handle_message(event, say):
-    # Ignore bot messages
     if event.get("subtype") == "bot_message" or event.get("bot_id"):
         return
     
     text = event.get("text", "")
     user_id = event.get("user")
     
-    user_timezone = USER_TIMEZONES.get(user_id, DEFAULT_TIMEZONE)
-    conversions = timezone_bot.process_message(text, user_timezone)
+    user_timezone = get_user_timezone(user_id)
+    if not user_timezone:
+        return
     
+    conversions = convert_times(text, user_timezone)
     if conversions:
-        response = "⏰ **Time Conversion:**\n" + "\n".join(conversions)
-        say(response)
+        response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+        for conv in conversions:
+            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                       if conv['same_day'] 
+                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+            
+            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+            response += f"{format_for_slack(line)}\n"
+        
+        say(response.strip())
 
 @app.event("app_mention")
 def handle_app_mention(event, say):
     text = event.get("text", "")
     user_id = event.get("user")
     
-    user_timezone = USER_TIMEZONES.get(user_id, DEFAULT_TIMEZONE)
-    conversions = timezone_bot.process_message(text, user_timezone)
-    
-    if conversions:
-        response = "⏰ **Time Conversion:**\n" + "\n".join(conversions)
-        say(response)
-    else:
-        say("I couldn't find any times to convert in your message. Try mentioning a time like '4 PM EST' or '14:30 PST'!")
-
-@app.command("/settimezone")
-def set_timezone(ack, respond, command):
-    ack()
-    
-    timezone_name = command['text'].strip()
-    user_id = command['user_id']
-    
-    if not timezone_name:
-        respond("Please provide a timezone. Example: `/settimezone America/New_York`")
+    user_timezone = get_user_timezone(user_id)
+    if not user_timezone:
+        say(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
         return
     
-    try:
-        pytz.timezone(timezone_name)  # Validate timezone
-        USER_TIMEZONES[user_id] = timezone_name
-        save_user_preferences(USER_TIMEZONES)
-        respond(f"Your timezone has been set to `{timezone_name}`")
-    except:
-        respond("Invalid timezone. Please use a valid timezone like `America/New_York`, `Europe/London`, or `Asia/Tokyo`.\n\nYou can find a list of valid timezones here: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones")
+    conversions = convert_times(text, user_timezone)
+    if conversions:
+        response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+        for conv in conversions:
+            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                       if conv['same_day'] 
+                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+            
+            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+            response += f"{format_for_slack(line)}\n"
+        
+        say(response.strip())
+    else:
+        say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)")))
 
-@app.command("/convert")
-def convert_time(ack, respond, command):
+@app.command("/timezone")
+def set_timezone_command(ack, respond, command):
     ack()
     
-    text = command['text']
+    timezone_input = command['text'].strip()
+    user_id = command['user_id']
+    
+    if not timezone_input:
+        current_tz = get_user_timezone(user_id)
+        respond(format_for_slack(
+            (response_messages.get('commands', {}).get('timezone_current', "Your timezone: `{timezone}`\n\nSet with: `/timezone EST` or `/timezone America/New_York`"))
+            .replace('{timezone}', current_tz or 'Not set')
+        ))
+        return
+    
+    if not normalize_timezone(timezone_input):
+        respond(format_for_slack(response_messages.get('errors', {}).get('invalid_timezone', "Invalid timezone. Use formats like EST, America/New_York, UTC-5")))
+        return
+    
+    success = set_user_timezone(user_id, timezone_input)
+    
+    if success:
+        tz = pytz.timezone(normalize_timezone(timezone_input))
+        current_time = datetime.now(tz)
+        formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
+        
+        respond(format_for_slack(
+            (response_messages.get('success', {}).get('timezone_set', "Timezone set to `{timezone}`\nCurrent time: **{time}**"))
+            .replace('{timezone}', timezone_input)
+            .replace('{time}', formatted_time)
+        ))
+    else:
+        respond(format_for_slack(response_messages.get('errors', {}).get('failed_to_save', "Failed to save timezone")))
+
+@app.command("/time")
+def convert_time_command(ack, respond, command):
+    ack()
+    
+    text = command['text'].strip()
     user_id = command['user_id']
     
     if not text:
-        respond("Please provide a time to convert. Example: `/convert 4 PM EST`")
+        respond(format_for_slack(
+            response_messages.get('commands', {}).get('time_usage', "Provide a time to convert:\n• `/time 4 PM EST`\n• `/time 14:30 PST`\n• `/time 4 PM` (assumes UTC)")
+        ))
         return
     
-    user_timezone = USER_TIMEZONES.get(user_id, DEFAULT_TIMEZONE)
-    conversions = timezone_bot.process_message(text, user_timezone)
+    user_timezone = get_user_timezone(user_id)
+    if not user_timezone:
+        respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+        return
     
-    if conversions:
-        response = "⏰ **Time Conversion:**\n" + "\n".join(conversions)
-        respond(response)
-    else:
-        respond("I couldn't find any times to convert. Try something like `4 PM EST`, `14:30 PST`, or `9 AM GMT`")
+    conversions = convert_times(text, user_timezone)
+    
+    # If no timezone specified, try assuming UTC
+    if not conversions:
+        found_times = extract_times(text)
+        for time_str in found_times:
+            parsed = parse_time(time_str, 'UTC')
+            if parsed:
+                target_tz = pytz.timezone(user_timezone)
+                converted = parsed['datetime'].astimezone(target_tz)
+                same_day = parsed['datetime'].date() == converted.date()
+                
+                conversions.append({
+                    'original': f"{time_str} UTC",
+                    'converted': converted.strftime('%I:%M %p %Z').lstrip('0'),
+                    'date': converted.strftime('%A, %B %d'),
+                    'same_day': same_day
+                })
+    
+    if not conversions:
+        respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)")))
+        return
+    
+    response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+    for conv in conversions:
+        template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                   if conv['same_day'] 
+                   else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+        
+        line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+        response += f"{format_for_slack(line)}\n"
+    
+    respond(response.strip())
 
 @app.command("/mytimezone")
-def show_timezone(ack, respond, command):
+def show_timezone_command(ack, respond, command):
     ack()
     
     user_id = command['user_id']
-    user_timezone = USER_TIMEZONES.get(user_id, DEFAULT_TIMEZONE)
+    user_timezone = get_user_timezone(user_id)
     
-    tz = pytz.timezone(user_timezone)
-    current_time = datetime.now(tz)
-    formatted_time = current_time.strftime("%I:%M %p %Z")
+    if not user_timezone:
+        respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+        return
     
-    respond(f"Your timezone is set to: `{user_timezone}`\nCurrent time: **{formatted_time}**")
+    try:
+        tz = pytz.timezone(user_timezone)
+        current_time = datetime.now(tz)
+        formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
+        date_str = current_time.strftime('%A, %B %d, %Y')
+        
+        respond(format_for_slack(
+            (response_messages.get('success', {}).get('mytimezone_display', "**Your timezone:** `{timezone}`\n**Current time:** {time}\n**Date:** {date}"))
+            .replace('{timezone}', user_timezone)
+            .replace('{time}', formatted_time)
+            .replace('{date}', date_str)
+        ))
+    except:
+        respond(format_for_slack((response_messages.get('success', {}).get('mytimezone_simple', "**Your timezone:** `{timezone}`")).replace('{timezone}', user_timezone)))
 
-@app.event("app_home_opened")
-def handle_app_home_opened(event, say):
-    user_id = event['user']
-    user_timezone = USER_TIMEZONES.get(user_id, DEFAULT_TIMEZONE)
+@app.command("/help")
+def help_command(ack, respond, command):
+    ack()
     
-    welcome_message = f"""
-👋 Hello! I'm your timezone conversion bot.
+    help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
+/timezone <timezone> - Set your timezone
+/time <time> - Convert a time
+/mytimezone - Show your timezone
+/help - Show this help
 
-**What I do:**
-• I automatically detect times in messages and convert them to your timezone
-• I support formats like "4 PM EST", "14:30 PST", "9 AM GMT"
-• I can handle common timezone abbreviations
+**Formats:**
+• 4 PM EST - 12-hour with timezone
+• 4:30 PM PST - 12-hour with minutes  
+• 16:30 GMT - 24-hour format
+• 14:00 UTC - 24-hour format
 
-**Your Settings:**
-Current timezone: `{user_timezone}`
+**Timezones:**
+• EST, PST, GMT, UTC, etc.
+• America/New_York, Europe/London
+• UTC-5, UTC+3
 
-**Commands:**
-• `/settimezone America/New_York` - Set your timezone
-• `/convert 4 PM EST` - Manually convert a time
-• `/mytimezone` - Check your current timezone
-
-**Example:**
-If someone writes "Meeting at 4 PM EST", I'll automatically convert it to your timezone!
-
-Try mentioning a time in any channel where I'm added, or use the commands above to get started.
-"""
+**Auto-detection:**
+I detect times in messages and convert them automatically."""))
     
-    say(welcome_message)
+    respond(help_text)
 
 @app.error
 def global_error_handler(error, body, logger):
-    logger.exception(f"Something went wrong: {error}")
-    logger.info(f"Request details: {body}")
+    logger.exception(f"Error: {error}")
 
 if __name__ == "__main__":
     print("Starting Timezone Bot...")
-    print(f"Default timezone: {DEFAULT_TIMEZONE}")
     print("Connecting to Slack...")
+    
+    init_user_prefs()
     
     try:
         handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
         handler.start()
     except KeyboardInterrupt:
-        print("\nBot stopped by user")
+        print("\nBot stopped")
     except Exception as e:
         print(f"Error starting bot: {e}")
-        print("Please check your environment variables and try again.")

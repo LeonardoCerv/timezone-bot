@@ -1,0 +1,38 @@
+{
+  "discord": {
+    "657655884708839435": {
+      "timezone": "Etc/GMT-5",
+      "displayName": "+0530",
+      "lastUpdated": "2025-07-10T19:16:26.582Z"
+    },
+    "test123": {
+      "timezone": "America/New_York",
+      "displayName": "America/New_York",
+      "lastUpdated": "2025-07-14T01:42:28.181Z"
+    }
+  },
+  "slack": {
+    "U095AHEMJGJ": {
+      "timezone": "America/New_York",
+      "displayName": "est",
+      "lastUpdated": "2025-07-13T12:00:00.000Z"
+    },
+    "slack_test123": {
+      "timezone": "Europe/London",
+      "displayName": "Europe/London",
+      "lastUpdated": "2025-07-13T19:43:07.118756"
+    }
+  },
+  "telegram": {
+    "5105561661": {
+      "timezone": "America/New_York",
+      "displayName": "America/New_York",
+      "lastUpdated": "2025-07-11T15:20:03.388505"
+    },
+    "456789": {
+      "timezone": "Asia/Tokyo",
+      "displayName": "Asia/Tokyo",
+      "lastUpdated": "2025-07-13T19:43:07.118950"
+    }
+  }
+}

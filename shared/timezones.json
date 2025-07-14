@@ -1,0 +1,42 @@
+{
+  "aliases": {
+    "EST": "America/New_York",
+    "EDT": "America/New_York",
+    "CST": "America/Chicago", 
+    "CDT": "America/Chicago",
+    "MST": "America/Denver",
+    "MDT": "America/Denver",
+    "PST": "America/Los_Angeles",
+    "PDT": "America/Los_Angeles",
+    "GMT": "GMT",
+    "UTC": "UTC",
+    "BST": "Europe/London",
+    "CET": "Europe/Paris",
+    "CEST": "Europe/Paris",
+    "JST": "Asia/Tokyo",
+    "IST": "Asia/Kolkata",
+    "AEST": "Australia/Sydney",
+    "AEDT": "Australia/Sydney",
+    "SGT": "Asia/Singapore",
+    "HKT": "Asia/Hong_Kong",
+    "KST": "Asia/Seoul",
+    "WET": "Europe/Lisbon",
+    "EET": "Europe/Athens",
+    "CAT": "Africa/Cairo",
+    "WAT": "Africa/Lagos",
+    "NZST": "Pacific/Auckland",
+    "NZDT": "Pacific/Auckland"
+  },
+  "popular": [
+    "America/New_York",
+    "America/Chicago", 
+    "America/Denver",
+    "America/Los_Angeles",
+    "Europe/London",
+    "Europe/Paris",
+    "Asia/Tokyo",
+    "Asia/Shanghai",
+    "Asia/Kolkata",
+    "Australia/Sydney"
+  ]
+}

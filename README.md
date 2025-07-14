@@ -1,21 +1,21 @@
-# Discord Timezone Bot
+# Multi-Platform Timezone Bot
 
-A Discord bot that converts times between timezones using slash commands and emoji reactions.
+A timezone conversion bot supporting Discord, Slack, and Telegram with consistent commands and behavior across platforms.
 
-## Features
+## Commands (Available on all platforms)
 
-### Slash Commands
 - `/timezone <timezone>` - Set your personal timezone
-- `/time <message> [timezone]` - Convert times in a message to your timezone (or specified timezone)
+- `/time <message> [timezone]` - Convert times to your timezone (or specified timezone)  
+- `/mytimezone` - Show your current timezone setting and current time
+- `/help` - Show help information and available commands
 
-### Emoji Reactions 🆕
+## Discord Features
+
+### Emoji Reactions
 React to any message containing times with time-related emojis to get instant timezone conversions:
-- 🕐 (clock face)
-- ⏰ (alarm clock) 
-- ⏳ (hourglass)
-- ⏲️ (timer)
+- 🕐 (clock face) ⏰ (alarm clock) ⏳ (hourglass) ⏲️ (timer)
 
-The bot will DM you the converted times in your timezone. Set your timezone first with `/timezone`!
+The bot will DM you the converted times in your timezone.
 
 ## Supported Formats
 
@@ -40,15 +40,18 @@ The bot can detect and parse various time formats:
 
 ## Usage Examples
 
-### Personal Timezone Setup
+### Setup
 1. Set your timezone: `/timezone EST`
-2. Use `/time` command: `/time "Meeting at 3 PM GMT"`
-3. **OR** React to any message containing times with 🕐, ⏰, ⏳, or ⏲️ for instant conversion
+2. Convert times: `/time "Meeting at 3 PM GMT"`
+3. Check your settings: `/mytimezone`
 
-### Quick Reaction Conversion
+### Discord Emoji Reactions
 1. Someone posts: "Let's meet at 3 PM EST tomorrow"
-2. React with ⏰ emoji
-3. Get a DM with: "⏰ **Times converted to your timezone (PST):** **3 PM EST** → **12:00 PM PST**"
+2. React with ⏰ emoji  
+3. Get a DM with converted times in your timezone
+
+### All Platforms
+All bots provide identical functionality with automatic time detection and consistent response formatting.
 
 ## License
 

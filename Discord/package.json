@@ -2,12 +2,12 @@
   "name": "discord-timezone-bot",
   "version": "1.0.0",
   "description": "Discord bot for personal timezone conversion using slash commands",
-  "main": "app.js",
+  "main": "bot.js",
   "type": "module",
   "scripts": {
-    "start": "node app.js",
-    "register": "node commands.js",
-    "dev": "nodemon app.js"
+    "start": "node bot.js",
+    "register": "node register.js",
+    "dev": "nodemon bot.js"
   },
   "author": "Leonardo Cervantes",
   "license": "MIT",
