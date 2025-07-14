@@ -2,6 +2,8 @@ import os
 import re
 import json
 import pytz
+import threading
+import subprocess
 from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -452,8 +454,26 @@ I detect times in messages and convert them automatically."""))
 def global_error_handler(error, body, logger):
     logger.exception(f"Error: {error}")
 
+def start_oauth_server():
+    """Start the OAuth server in a separate process"""
+    try:
+        print("Starting OAuth server...")
+        # Run the oauth_server.py as a subprocess
+        subprocess.Popen(
+            ["python", "oauth_server.py"],
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        print("OAuth server started on http://localhost:3000")
+        print("Install URL: http://localhost:3000/install")
+    except Exception as e:
+        print(f"Failed to start OAuth server: {e}")
+
 if __name__ == "__main__":
     print("Starting Timezone Bot...")
+    
+    # Start OAuth server first
+    start_oauth_server()
+    
     print("Connecting to Slack...")
     
     init_user_prefs()
