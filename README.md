@@ -1,112 +1,118 @@
-# Multi-Platform Timezone Bot
 
-A comprehensive timezone conversion bot supporting Discord, Slack, and Telegram platforms with consistent commands and behavior across all environments.
+> 📖 🇪🇸 También disponible en español: [README.es.md](README.es.md)
 
-## Installation
+# Timezone Bot
 
-Deploy the bot to your preferred platform:
+![Typescript](https://img.shields.io/badge/Typescript-3178C6?logo=Typescript&logoColor=white)
+![Python](https://img.shields.io/badge/Python-yellow?logo=Python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-307387?logo=flask&logoColor=white)
+![Node.js](https://img.shields.io/badge/NodeJS-339933?logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?logo=express&logoColor=white)
+![Platform](https://img.shields.io/badge/Discord%20API-7289DA?logo=discord&logoColor=white)
+![Platform](https://img.shields.io/badge/Slack%20API-4A154B?logo=slack&logoColor=white)
+![Platform](https://img.shields.io/badge/Telegram%20API-26A5E4?logo=telegram&logoColor=white)
+![Field](https://img.shields.io/badge/Field-Bot%20Development-white)
+![License](https://img.shields.io/badge/License-MIT-brown)
 
-### Discord
-[![Add to Discord](https://img.shields.io/badge/Add%20to-Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands)
+A bot to help you convert different timezones inside messages in **Discord**/**Slack**/**Telegram**.This bot doesnt interfere with other messages in the channel so its perfect for big servers.
 
-### Slack  
-[![Add to Slack](https://img.shields.io/badge/Add%20to-Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=)
+## What it does
 
-### Telegram
-[![Start Bot](https://img.shields.io/badge/Start-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/TimeZone123Bot)
+Got teammates in different time zones? This bot helps you figure out what time it is for everyone.
 
-## Commands
+- **Type a time**, get it converted to your timezone
+- **React with a clock emoji** on Discord to convert any message
+- **Works the same way** on Discord, Slack, and Telegram
+- **Remembers your timezone** once you set it
 
-Available across all supported platforms:
+## Add the bot to your platform
 
-- `/timezone <timezone>` - Set your personal timezone
-- `/time <message> [timezone]` - Convert times to your timezone or specified timezone
-- `/mytimezone` - Display your current timezone setting and local time
-- `/help` - Show help information and available commands
+| Platform | Link | 
+|----------|------|
+| Discord | [![Add to Discord](https://img.shields.io/badge/Add%20to-Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands) |
+| Slack | [![Add to Slack](https://img.shields.io/badge/Add%20to-Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=) |
+| Telegram | [![Start Telegram](https://img.shields.io/badge/Start-Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/TimeZone123Bot) |
 
-## Platform-Specific Features
+## How to use it
 
-### Discord
-**Emoji Reactions**: React to messages containing times with time-related emojis for instant timezone conversions:
-- Clock face, alarm clock, hourglass, or timer emojis
-- Converted times will be sent via direct message
+1. **Set your timezone** (only need to do this once):
+   ```
+   /timezone EST
+   /timezone Europe/London
+   /timezone UTC+5:30
+   ```
 
-## Supported Formats
+2. **Convert times**:
+   ```
+   /time "Meeting at 3 PM GMT"
+   /time "Call at 2:30 PM EST"
+   ```
 
-**Time Formats**:
-- 12-hour format: `3:00 PM`, `3 PM`, `3:30 AM`
-- 24-hour format: `15:00`, `09:30`, `23:45`
-- With timezone: `3 PM EST`, `15:00 UTC`, `2:30 AM PST`
-- With context: `at 3pm`, `around 15:30`, `before 2 PM`
+3. **On Discord**: React to any message with ⏰ 🕐 ⏳ or ⏱️ to get a private message with the time conversion
 
-**Timezone Formats**:
-- Abbreviations: EST, PST, GMT, UTC, CET, JST, IST, AEST
-- IANA zones: America/New_York, Europe/London, Asia/Tokyo
-- UTC offsets: UTC-5, UTC+5:30, +0530, -0800
+## Examples
 
-## Usage Examples
+**Someone says**: "Daily standup at 9 AM EST tomorrow"  
+**Bot replies**: "9:00AM EST → 2:00PM GMT → 6:00AM PST"
 
-### Initial Setup
-1. Set your timezone: `/timezone EST`
-2. Convert times in messages: `/time "Meeting at 3 PM GMT"`
-3. Check your current settings: `/mytimezone`
+**Someone says**: "Product launch at 15:00 UTC on Friday"  
+**Bot replies**: "3:00PM UTC → 11:00AM EDT → 8:00AM PDT (Friday, March 15th)"
 
-### Discord Emoji Reactions
-1. User posts: "Let's meet at 3 PM EST tomorrow"
-2. React with a time-related emoji
-3. Receive converted times via direct message
+## Running it yourself
 
-### Cross-Platform Consistency
-All bot implementations provide identical functionality with automatic time detection and consistent response formatting across Discord, Slack, and Telegram.
+Want to run your own version? Here's what you need:
 
-## Development Setup
+### Requirements
+- Node.js (for Discord bot)
+- Python 3.8+ (for Slack and Telegram bots)
 
 ### Discord Bot
 ```bash
-cd Discord
+cd Discord/
 npm install
-# Create .env file with DISCORD_TOKEN and CLIENT_ID
-npm run register  # Register slash commands
-npm start
+cp .env.example .env    # Add your Discord bot token
+npm run register        # Register commands with Discord
+npm run dev
 ```
 
 ### Slack Bot  
 ```bash
-cd Slack
+cd Slack/
 pip install -r requirements.txt
-# Create .env file with SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET
+cp .env.example .env    # Add your Slack tokens
 python app.py
 ```
 
 ### Telegram Bot
 ```bash
-cd Telegram  
-pip install -r requirements.txt
-# Create .env file with TELEGRAM_BOT_TOKEN
+cd Telegram/
+pip install -r requirements.txt  
+cp .env.example .env    # Add your Telegram bot token
 python app.py
 ```
 
-## Project Structure
+## Project structure
 
 ```
-query-bot/
-├── Discord/          # Discord bot implementation (Node.js)
-│   ├── bot.js
-│   ├── register.js
-│   └── package.json
-├── Slack/           # Slack bot implementation (Python)
-│   ├── app.py
-│   ├── oauth_server.py
-│   └── requirements.txt
-├── Telegram/        # Telegram bot implementation (Python)
-│   ├── app.py
-│   └── requirements.txt
-└── shared/          # Shared configuration and resources
-    ├── response_messages.json
+timezone-bot/
+├── Discord/           # Discord bot (Node.js)
+├── Slack/            # Slack bot (Python)  
+├── Telegram/         # Telegram bot (Python)
+└── shared/           # Shared config files
     ├── timezones.json
-    └── user_preferences.json
+    ├── user_preferences.json
+    └── response_messages.json
 ```
+
+## Contributing
+
+Want to help? Great!
+
+1. Fork the repo
+2. Make your changes
+3. Test them
+4. Submit a pull request
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - do whatever you want with it.
