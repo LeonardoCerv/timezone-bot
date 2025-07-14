@@ -127,9 +127,9 @@ function getUserTimezone(userId) {
 // Time parsing and conversion
 function extractTimes(content) {
   const patterns = [
-    // With timezone: "3:00 PM EST", "2 PM PST"
-    /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b/gi,
-    /\b(\d{1,2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b/gi,
+    // With timezone: "3:00 PM EST", "2 PM PST", "3 PM SGT"
+    /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b/gi,
+    /\b(\d{1,2})\s*(AM|PM|am|pm)\s*([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b/gi,
     // 12-hour: "3:00 PM", "3 PM"
     /\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\b/gi,
     /\b(\d{1,2})\s*(AM|PM|am|pm)\b/gi,
@@ -172,17 +172,21 @@ function parseTime(timeStr, contextTz = 'UTC') {
   
   let timezone = contextTz;
   
-  // Look for timezone in string
-  const tzMatch = timeStr.match(/\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b/i);
+  // Look for timezone in string - improved regex to catch more formats, excluding AM/PM
+  const tzMatch = timeStr.match(/\b(?!AM|PM)([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b/i);
   if (tzMatch) {
-    const normalizedTz = normalizeTimezone(tzMatch[1]);
-    if (normalizedTz) timezone = normalizedTz;
+    const tzCandidate = tzMatch[1];
+    // Double-check it's not AM/PM
+    if (!/^(AM|PM)$/i.test(tzCandidate)) {
+      const normalizedTz = normalizeTimezone(tzCandidate);
+      if (normalizedTz) timezone = normalizedTz;
+    }
   }
   
   // Clean up time string
   const cleanTime = timeStr
     .replace(/\b(at|around|by|before|after)\s+/gi, '')
-    .replace(/\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b/gi, '')
+    .replace(/\b([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b/gi, '')
     .trim();
   
   // Try different formats
@@ -200,6 +204,18 @@ function parseTime(timeStr, contextTz = 'UTC') {
   return fallback.isValid() ? { moment: fallback, timezone } : null;
 }
 
+// Helper function to get display name for timezone
+function getTimezoneDisplayName(timezone) {
+  // Check if we have a display name in the timezone config
+  if (timezoneConfig.display_names && timezoneConfig.display_names[timezone]) {
+    return timezoneConfig.display_names[timezone];
+  }
+  
+  // Fallback to moment timezone abbreviation
+  const momentTz = moment.tz(timezone);
+  return momentTz.format('z');
+}
+
 function convertTimes(content, targetTimezone) {
   const foundTimes = extractTimes(content);
   if (foundTimes.length === 0) return [];
@@ -207,17 +223,22 @@ function convertTimes(content, targetTimezone) {
   const results = [];
   
   for (const timeStr of foundTimes) {
-    const parsed = parseTime(timeStr, 'UTC');
+    // Try to parse with timezone from string, fallback to UTC only if no TZ found
+    const parsed = parseTime(timeStr);
     if (parsed) {
-      const converted = parsed.moment.clone().tz(targetTimezone);
-      const isSameDay = parsed.moment.format('YYYY-MM-DD') === converted.format('YYYY-MM-DD');
-      
-      results.push({
-        original: timeStr,
-        converted: converted.format('h:mm A z'),
-        date: converted.format('dddd, MMMM Do'),
-        isSameDay
-      });
+        const converted = parsed.moment.clone().tz(targetTimezone);
+        const isSameDay = parsed.moment.format('YYYY-MM-DD') === converted.format('YYYY-MM-DD');
+        
+        // Format consistently with proper timezone abbreviations
+        const originalFormatted = `${parsed.moment.format('h:mmA')} ${getTimezoneDisplayName(parsed.timezone)}`;
+        const convertedFormatted = `${converted.format('h:mmA')} ${getTimezoneDisplayName(targetTimezone)}`;
+        
+        results.push({
+          original: originalFormatted,
+          converted: convertedFormatted,
+          date: converted.format('dddd, MMMM Do'),
+          isSameDay
+        });
     }
   }
   
@@ -368,7 +389,7 @@ class GatewayClient {
 
     const conversions = convertTimes(messageContent, userTimezone);
     if (conversions.length === 0) {
-      await sendDM(user_id, responseMessages.errors?.no_times_found || "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)");
+      await sendDM(user_id, responseMessages.errors?.no_times_found || "*No times found. Use format: /convert 3:00PM EST*");
       return;
     }
 
@@ -429,7 +450,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
       const timezone = data.options[0].value;
       
       if (!normalizeTimezone(timezone)) {
-        return res.send(createResponse(responseMessages.errors?.invalid_timezone || "Invalid timezone. Use formats like EST, America/New_York, UTC-5"));
+        return res.send(createResponse(responseMessages.errors?.invalid_timezone || "*Invalid timezone. Use format: /convert 3:00PM EST*"));
       }
       
       const success = setUserTimezone(userId, timezone);
@@ -446,7 +467,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
       }
     }
 
-    if (name === 'time') {
+    if (name === 'convert') {
       const messageOption = data.options?.find(opt => opt.name === 'message');
       if (!messageOption) {
         return res.send(createResponse("Please provide a message containing times"));
@@ -461,7 +482,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
       }
       
       if (timezoneOption && !normalizeTimezone(timezoneOption.value)) {
-        return res.send(createResponse(responseMessages.errors?.invalid_timezone || "Invalid timezone. Use formats like EST, America/New_York, UTC-5"));
+        return res.send(createResponse(responseMessages.errors?.invalid_timezone || "*Invalid timezone. Use format: /convert 3:00PM EST*"));
       }
       
       const conversions = convertTimes(messageContent, targetTz);
@@ -475,9 +496,13 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
             const converted = parsed.moment.clone().tz(targetTz);
             const isSameDay = parsed.moment.format('YYYY-MM-DD') === converted.format('YYYY-MM-DD');
             
+            // Format consistently with proper timezone abbreviations
+            const originalFormatted = `${timeStr} UTC`;
+            const convertedFormatted = `${converted.format('h:mmA')} ${getTimezoneDisplayName(targetTz)}`;
+            
             conversions.push({
-              original: `${timeStr} UTC`,
-              converted: converted.format('h:mm A z'),
+              original: originalFormatted,
+              converted: convertedFormatted,
               date: converted.format('dddd, MMMM Do'),
               isSameDay
             });
@@ -486,7 +511,7 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
       }
       
       if (conversions.length === 0) {
-        return res.send(createResponse(responseMessages.errors?.no_times_found || "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)"));
+        return res.send(createResponse(responseMessages.errors?.no_times_found || "*No times found. Use format: /convert 3:00PM EST*"));
       }
       
       let response = (responseMessages.success?.conversion_header || "**Times in your timezone ({timezone})**\n\n").replace('{timezone}', targetTz);
@@ -532,19 +557,19 @@ app.post('/interactions', verifyKeyMiddleware(process.env.PUBLIC_KEY), (req, res
     if (name === 'help') {
       const helpText = responseMessages.help?.content || `**Commands:**
 /timezone <timezone> - Set your timezone
-/time <time> - Convert a time
+/convert <time> - Convert a time
 /mytimezone - Show your timezone
 /help - Show this help
 
 **Formats:**
-• 4 PM EST - 12-hour with timezone
+• 3:00PM EST - 12-hour with timezone
 • 4:30 PM PST - 12-hour with minutes  
 • 16:30 GMT - 24-hour format
 • 14:00 UTC - 24-hour format
 
 **Timezones:**
-• EST, PST, GMT, UTC, etc.
-• America/New_York, Europe/London
+• EST, PST, GMT, UTC, SGT, etc.
+• America/New_York, Europe/London, Asia/Singapore
 • UTC-5, UTC+3
 
 **Auto-detection:**
@@ -574,7 +599,7 @@ const gateway = new GatewayClient();
 // Start server
 app.listen(PORT, () => {
   console.log(`Bot listening on port ${PORT}`);
-  console.log('Commands: /timezone EST, /time "Meeting at 3 PM"');
+  console.log('Commands: /timezone EST, /convert "Meeting at 3 PM EST"');
   console.log('React with ⏰ to messages with times for conversion');
   gateway.connect();
 });

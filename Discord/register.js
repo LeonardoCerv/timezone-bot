@@ -17,13 +17,13 @@ async function registerCommands() {
       contexts: [0, 1, 2],
     },
     {
-      name: 'time',
+      name: 'convert',
       description: 'Convert times in a message to your timezone or specified timezone',
       options: [
         {
           type: 3,
           name: 'message',
-          description: 'Message containing times to convert',
+          description: 'Message containing times to convert (e.g., "3:00PM EST")',
           required: true
         },
         {

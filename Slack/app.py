@@ -72,6 +72,20 @@ def write_user_prefs(data):
         return False
 
 # Timezone utilities
+# Helper function to get display name for timezone
+def get_timezone_display_name(timezone_id):
+    # Check if we have a display name in the timezone config
+    if timezone_config.get('display_names') and timezone_id in timezone_config['display_names']:
+        return timezone_config['display_names'][timezone_id]
+    
+    # Fallback to timezone name
+    try:
+        tz = pytz.timezone(timezone_id)
+        now = datetime.now(tz)
+        return now.strftime('%Z')
+    except:
+        return timezone_id.split('/')[-1].upper()
+
 def normalize_timezone(input_tz):
     if not input_tz:
         return None
@@ -121,9 +135,9 @@ def get_user_timezone(user_id):
 # Time parsing and conversion
 def extract_times(content):
     patterns = [
-        # With timezone: "3:00 PM EST", "2 PM PST"
-        r'\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b',
-        r'\b(\d{1,2})\s*(AM|PM|am|pm)\s*([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b',
+        # With timezone: "3:00 PM EST", "2 PM PST", "3 PM SGT"
+        r'\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\s*([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b',
+        r'\b(\d{1,2})\s*(AM|PM|am|pm)\s*([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b',
         # 12-hour: "3:00 PM", "3 PM"
         r'\b(\d{1,2}):(\d{2})\s*(AM|PM|am|pm)\b',
         r'\b(\d{1,2})\s*(AM|PM|am|pm)\b',
@@ -153,7 +167,8 @@ def extract_times(content):
                 times.append(match.group(0).strip())
                 spans.append({'start': start, 'end': end})
     
-    return [t for t in times if len(t) >= 2 and not re.match(r'^\d{1,2}$', t.strip())]
+    return sorted([t for t in times if len(t) >= 2 and not re.match(r'^\d{1,2}$', t.strip())], 
+                 key=lambda x: content.find(x))
 
 def parse_time(time_str, context_tz='UTC'):
     if not time_str:
@@ -161,16 +176,19 @@ def parse_time(time_str, context_tz='UTC'):
     
     timezone = context_tz
     
-    # Look for timezone in string
-    tz_match = re.search(r'\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b', time_str, re.IGNORECASE)
+    # Look for timezone in string - improved regex to catch more formats, excluding AM/PM
+    tz_match = re.search(r'\b(?!AM|PM)([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', time_str, re.IGNORECASE)
     if tz_match:
-        normalized_tz = normalize_timezone(tz_match.group(1))
-        if normalized_tz:
-            timezone = normalized_tz
+        tz_candidate = tz_match.group(1)
+        # Double-check it's not AM/PM
+        if tz_candidate.upper() not in ['AM', 'PM']:
+            normalized_tz = normalize_timezone(tz_candidate)
+            if normalized_tz:
+                timezone = normalized_tz
     
     # Clean up time string
     clean_time = re.sub(r'\b(at|around|by|before|after)\s+', '', time_str, flags=re.IGNORECASE)
-    clean_time = re.sub(r'\b([A-Z]{3,4}|UTC[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
+    clean_time = re.sub(r'\b([A-Z]{2,4}|UTC[+-]\d{1,2}:?\d{0,2}|GMT[+-]\d{1,2}:?\d{0,2})\b', '', clean_time, flags=re.IGNORECASE).strip()
     
     try:
         # Parse different formats
@@ -200,15 +218,20 @@ def convert_times(content, target_timezone):
     results = []
     
     for time_str in found_times:
-        parsed = parse_time(time_str, 'UTC')
+        # Try to parse with timezone from string, fallback to UTC only if no TZ found
+        parsed = parse_time(time_str)
         if parsed:
             target_tz = pytz.timezone(target_timezone)
             converted = parsed['datetime'].astimezone(target_tz)
             same_day = parsed['datetime'].date() == converted.date()
             
+            # Format consistently with proper timezone abbreviations
+            original_formatted = f"{parsed['datetime'].strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(parsed['timezone'])}"
+            converted_formatted = f"{converted.strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(target_timezone)}"
+            
             results.append({
-                'original': time_str,
-                'converted': converted.strftime('%I:%M %p %Z').lstrip('0'),
+                'original': original_formatted,
+                'converted': converted_formatted,
                 'date': converted.strftime('%A, %B %d'),
                 'same_day': same_day
             })
@@ -266,7 +289,7 @@ def handle_app_mention(event, say):
         
         say(response.strip())
     else:
-        say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)")))
+        say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
 
 @app.command("/timezone")
 def set_timezone_command(ack, respond, command):
@@ -284,7 +307,7 @@ def set_timezone_command(ack, respond, command):
         return
     
     if not normalize_timezone(timezone_input):
-        respond(format_for_slack(response_messages.get('errors', {}).get('invalid_timezone', "Invalid timezone. Use formats like EST, America/New_York, UTC-5")))
+        respond(format_for_slack(response_messages.get('errors', {}).get('invalid_timezone', "*Invalid timezone. Use format: /convert 3:00PM EST*")))
         return
     
     success = set_user_timezone(user_id, timezone_input)
@@ -302,7 +325,7 @@ def set_timezone_command(ack, respond, command):
     else:
         respond(format_for_slack(response_messages.get('errors', {}).get('failed_to_save', "Failed to save timezone")))
 
-@app.command("/time")
+@app.command("/convert")
 def convert_time_command(ack, respond, command):
     ack()
     
@@ -311,7 +334,7 @@ def convert_time_command(ack, respond, command):
     
     if not text:
         respond(format_for_slack(
-            response_messages.get('commands', {}).get('time_usage', "Provide a time to convert:\n• `/time 4 PM EST`\n• `/time 14:30 PST`\n• `/time 4 PM` (assumes UTC)")
+            response_messages.get('commands', {}).get('convert_usage', "Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)")
         ))
         return
     
@@ -332,15 +355,19 @@ def convert_time_command(ack, respond, command):
                 converted = parsed['datetime'].astimezone(target_tz)
                 same_day = parsed['datetime'].date() == converted.date()
                 
+                # Format consistently with proper timezone abbreviations
+                original_formatted = f"{time_str} UTC"
+                converted_formatted = f"{converted.strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(user_timezone)}"
+                
                 conversions.append({
-                    'original': f"{time_str} UTC",
-                    'converted': converted.strftime('%I:%M %p %Z').lstrip('0'),
+                    'original': original_formatted,
+                    'converted': converted_formatted,
                     'date': converted.strftime('%A, %B %d'),
                     'same_day': same_day
                 })
     
     if not conversions:
-        respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)")))
+        respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
         return
     
     response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))

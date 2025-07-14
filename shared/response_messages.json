@@ -1,8 +1,8 @@
 {
   "errors": {
     "no_timezone_set": "No timezone set. Use `/timezone EST` to set one",
-    "invalid_timezone": "Invalid timezone. Use formats like EST, America/New_York, UTC-5",
-    "no_times_found": "No times found. Examples: `4 PM EST`, `14:30 PST`, `4 PM` (UTC)",
+    "invalid_timezone": "*Invalid timezone. Use format: /convert 3:00PM EST*",
+    "no_times_found": "*No times found. Use format: /convert 3:00PM EST*",
     "failed_to_save": "Failed to save timezone"
   },
   "success": {
@@ -14,11 +14,11 @@
     "mytimezone_simple": "**Your timezone:** `{timezone}`"
   },
   "commands": {
-    "time_usage": "Provide a time to convert:\n• `/time 4 PM EST`\n• `/time 14:30 PST`\n• `/time 4 PM` (assumes UTC)",
+    "convert_usage": "Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)",
     "timezone_current": "Your timezone: `{timezone}`\n\nSet with: `/timezone EST` or `/timezone America/New_York`"
   },
   "help": {
-    "content": "**Commands:**\n/timezone <timezone> - Set your timezone\n/time <time> - Convert a time\n/mytimezone - Show your timezone\n/help - Show this help\n\n**Formats:**\n• 4 PM EST - 12-hour with timezone\n• 4:30 PM PST - 12-hour with minutes  \n• 16:30 GMT - 24-hour format\n• 14:00 UTC - 24-hour format\n\n**Timezones:**\n• EST, PST, GMT, UTC, etc.\n• America/New_York, Europe/London\n• UTC-5, UTC+3\n\n**Auto-detection:**\nI detect times in messages and convert them automatically."
+    "content": "**Commands:**\n/timezone <timezone> - Set your timezone\n/convert <time> - Convert a time\n/mytimezone - Show your timezone\n/help - Show this help\n\n**Formats:**\n• 3:00PM EST - 12-hour with timezone\n• 4:30 PM PST - 12-hour with minutes  \n• 16:30 GMT - 24-hour format\n• 14:00 UTC - 24-hour format\n\n**Timezones:**\n• EST, PST, GMT, UTC, SGT, etc.\n• America/New_York, Europe/London, Asia/Singapore\n• UTC-5, UTC+3\n\n**Auto-detection:**\nI detect times in messages and convert them automatically."
   },
   "formatting": {
     "discord": {
