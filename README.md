@@ -20,16 +20,52 @@ A bot to help you convert different timezones inside messages in **Discord**/**S
 
 ## What it does
 
-Got teammates in different time zones? This bot helps you figure out what time it is for everyone.
+Picture this: you're coordinating a meeting with teammates across three continents. Someone says "let's meet at 3pm EST" and suddenly everyone's doing mental math. Your London colleague is calculating GMT, your Tokyo teammate is figuring out JST, and you're just trying to remember if you're in PST or PDT.
 
-- **Type a time**, get it converted to your timezone
-- **React with a clock emoji** on Discord to convert any message
-- **Works the same way** on Discord, Slack, and Telegram
-- **Remembers your timezone** once you set it
+This bot solves that problem. It lives quietly in your Discord servers, Slack workspaces, and Telegram chats, waiting for you to use it, and when you do, it shows ephemeral messages, it makes sure to not interrupt the conversacion or cluterring the channel.
+
+**How it works:**
+- Someone types `/time 3pm EST` or just mentions a time in conversation
+- On Discord, anyone can react with ⏰ to any message containing time
+- The bot privately responds with conversions to your timezone and other popular zones
+- It remembers your timezone preference across all platforms
+- Supports 200+ timezone aliases (EST, PST, GMT, JST, etc.)
+
+**Example conversation:**
+```
+Alice: "Daily standup is at 9am PST tomorrow"
+[Someone reacts with ⏰]
+Bot (privately): 🕒 9:00 AM PST
+                🌍 Your timezone: 12:00 PM EST  
+                🌏 UTC: 5:00 PM
+                🌍 London: 5:00 PM GMT
+```
 
 ## Running it yourself
 
-Want to run your own version? Here are the steps to follow:
+Want to run your own version? Here's how each platform works:
+
+### Requirements
+
+Before diving into platform-specific setup, you'll need different infrastructure depending on which bots you want to run:
+
+**For Discord & Slack bots:**
+- A server with a public IP address or domain name
+- HTTPS support (required for webhooks)
+- Port access for incoming requests (Discord uses webhooks, Slack uses Socket Mode but OAuth requires endpoints)
+- Consider services like Railway, Heroku, DigitalOcean, or AWS for hosting
+
+**For Telegram bot:**
+- No server required! Telegram uses polling, so it can run from your local machine
+- Just needs an internet connection to poll for updates
+ff
+**General requirements:**
+- Node.js 16+ (for Discord bot)
+- Python 3.8+ (for Slack and Telegram bots)
+- Bot tokens and API credentials from each platform:
+  - **Discord**: [Discord Developer Portal](https://discord.com/developers/applications)
+  - **Slack**: [Slack API Dashboard](https://api.slack.com/apps)
+  - **Telegram**: [@BotFather](https://t.me/BotFather) on Telegram
 
 ### Discord Bot Setup
 ```bash
@@ -62,7 +98,7 @@ python app.py                    # Start bot with long polling
 
 ## How it works technically
 
-### Core Timezone Logic
+### Timezone conversion
 All platforms use the same timezone conversion algorithm:
 
 1. **Parse time from text** using regex patterns (supports 12/24hr formats, AM/PM, timezones)
@@ -72,7 +108,7 @@ All platforms use the same timezone conversion algorithm:
    - Python: `pytz` 
 4. **Format output** showing original time → user's timezone → 2-3 other popular zones
 
-### Platform-Specific Implementation
+### Platform-Specific
 
 **Discord**: 
 - Slash commands (`/time`, `/timezone`) handled via Express webhook
@@ -106,10 +142,10 @@ This project uses different frameworks for each platform, optimized for their re
   - `express` - HTTP server for Discord webhook interactions
   - `ws` - WebSocket support for real-time Discord events
   - `moment-timezone` - Timezone conversion logic
-- **Architecture**: Uses Discord's interaction-based API with webhooks for slash commands and WebSocket gateway for reaction events
-- **File Structure**:
+- **Files**:
   - `bot.js` - Main bot logic with Express server and Discord event handlers
   - `register.js` - Registers slash commands with Discord API
+  - `package.json` - Dependencies and scripts configuration
 
 ### Slack Bot (Python/Flask + Slack Bolt)
 - **Framework**: Flask for OAuth + Slack Bolt for bot functionality  
@@ -118,10 +154,10 @@ This project uses different frameworks for each platform, optimized for their re
   - `slack-bolt` - Official Slack SDK for building apps with socket mode
   - `flask` - Web framework for OAuth flow and webhook endpoints
   - `pytz` - Python timezone handling
-- **Architecture**: Dual-server setup:
-  - `app.py` - Main bot using Slack Bolt's Socket Mode for real-time events
-  - `oauth_server.py` - Separate Flask server handling OAuth installation flow
-- **Why this setup**: Slack requires OAuth for workspace installation, while Bolt handles real-time messaging
+- **Files**:
+  - `app.py` - Main bot using Slack Bolt SDK for real-time events
+  - `oauth_server.py` - Flask server handling OAuth installation flow
+  - `requirements.txt` - Python dependencies
 
 ### Telegram Bot (Python/pyTelegramBotAPI)
 - **Framework**: pyTelegramBotAPI (telebot)
@@ -129,62 +165,21 @@ This project uses different frameworks for each platform, optimized for their re
 - **Key Libraries**:
   - `pyTelegramBotAPI` - Lightweight Python wrapper for Telegram Bot API
   - `pytz` - Timezone conversions
-- **Architecture**: Simple polling-based bot that processes updates directly from Telegram API
-- **File Structure**: Single `app.py` file - simplest implementation as Telegram's API is the most straightforward
-
-### Shared Components
-All platforms share common configuration and data:
-- **timezones.json** - 200+ timezone aliases (EST→America/New_York, etc.) and popular timezone lists
-- **user_preferences.json** - Cross-platform user timezone storage (Discord/Slack/Telegram user IDs)
-- **response_messages.json** - Standardized bot responses with platform-specific formatting
-
-### Why Different Frameworks?
-
-1. **Discord (Node.js/Express)**: 
-   - Discord's API is optimized for JavaScript/WebSocket interactions
-   - Express handles webhook-based slash commands efficiently
-   - Real-time reaction events need WebSocket gateway connection
-
-2. **Slack (Python/Flask + Bolt)**:
-   - Slack Bolt SDK provides robust event handling and middleware
-   - Flask needed separately for OAuth workflow (workspace installation)
-   - Socket Mode eliminates need for public webhooks
-
-3. **Telegram (Python/telebot)**:
-   - Simplest API of the three platforms
-   - No OAuth required - direct bot token authentication
-   - Polling-based approach works perfectly for timezone conversion use case
-
-
-## Project structure
-
-```
-timezone-bot/
-├── Discord/           # Discord bot (Node.js + Express)
-│   ├── bot.js        # Main bot logic + Express server
-│   ├── register.js   # Discord slash command registration
-│   └── package.json  # Dependencies: express, discord-interactions, ws
-├── Slack/            # Slack bot (Python + Flask + Bolt)
-│   ├── app.py        # Main bot using Slack Bolt SDK
-│   ├── oauth_server.py # Flask server for OAuth installation
-│   └── requirements.txt # Dependencies: slack-bolt, flask, pytz
-├── Telegram/         # Telegram bot (Python + pyTelegramBotAPI)
-│   ├── app.py        # Main bot logic
-│   └── requirements.txt # Dependencies: pyTelegramBotAPI, pytz
-└── shared/           # Cross-platform shared data
-    ├── timezones.json      # 200+ timezone aliases & popular zones
-    ├── user_preferences.json # User timezone settings (all platforms)
-    └── response_messages.json # Standardized bot responses
-```
+- **Files**:
+  - `app.py` - Main bot logic with polling and message handling
+  - `requirements.txt` - Python dependencies
 
 ## Contributing
 
-Want to help? Great!
+Want to help make timezone coordination easier for everyone?
 
-1. Fork the repo
-2. Make your changes
-3. Test them
-4. Submit a pull request
+1. **Fork the repo** - Start with your own copy
+2. **Pick a platform** - Each has its own development environment
+3. **Make your changes** - Follow existing patterns and test locally
+4. **Test across platforms** - Ensure shared data changes work everywhere
+5. **Submit a pull request** - We'll review and merge
+
+The beauty of this architecture is that you can contribute to one platform without needing to understand the others. The shared data files ensure consistency across all implementations.
 
 ## License
 
