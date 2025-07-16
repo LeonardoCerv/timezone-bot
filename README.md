@@ -58,7 +58,7 @@ Before diving into platform-specific setup, you'll need different infrastructure
 **For Telegram bot:**
 - No server required! Telegram uses polling, so it can run from your local machine
 - Just needs an internet connection to poll for updates
-ff
+
 **General requirements:**
 - Node.js 16+ (for Discord bot)
 - Python 3.8+ (for Slack and Telegram bots)
@@ -96,78 +96,56 @@ python app.py                    # Start bot with long polling
 ```
 > 💡 **Setup tip**: Copy `.env.example` to `.env` and fill in your bot token from [@BotFather](https://t.me/BotFather) on Telegram
 
-## How it works technically
+## Technical Architecture
 
-### Timezone conversion
-All platforms use the same timezone conversion algorithm:
+Unified timezone conversion across three platforms using shared data layer.
 
-1. **Parse time from text** using regex patterns (supports 12/24hr formats, AM/PM, timezones)
-2. **Resolve timezone aliases** via shared `timezones.json` (EST→America/New_York, etc.)
-3. **Convert using timezone libraries**:
-   - Node.js: `moment-timezone`
-   - Python: `pytz` 
-4. **Format output** showing original time → user's timezone → 2-3 other popular zones
+### Timezone pipeline
 
-### Platform-Specific
+1. **Text Parsing**: Regex detects time expressions (`3pm`, `15:00`, `3:30 PM EST`)
+2. **Timezone Resolution**: Maps aliases to IANA identifiers (`EST` → `America/New_York`)
+3. **Conversion**: `moment-timezone` (Node.js) or `pytz` (Python)
 
-**Discord**: 
-- Slash commands (`/time`, `/timezone`) handled via Express webhook
-- Reaction-based conversion uses WebSocket gateway to detect ⏰ emoji reactions
-- Private ephemeral responses to avoid channel spam
+#### **Discord** (`Discord/`): Express server + WebSocket for slash commands and ⏰ reactions  
+```bash
+├── bot.js           # Main bot logic, Express server, WebSocket handling
+├── register.js      # One-time slash command registration
+├── package.json     # Dependencies: express, discord-interactions, ws
+└── .env.example     # Discord bot token, app credentials'
+```
 
-**Slack**:
-- Socket Mode connection handles real-time events (mentions, DMs, slash commands)
-- OAuth server runs separately on Flask for workspace installations
-- Threading support preserves conversation context
+#### **Slack** (`Slack/`): Dual-process Socket Mode + Flask OAuth server  
+```bash
+├── app.py           # Main bot using Slack Bolt SDK
+├── oauth_server.py  # Flask OAuth server for workspace installation
+├── requirements.txt # Dependencies: slack-bolt, flask, pytz
+└── .env.example     # Slack bot/app tokens, signing secret
+```
+#### **Telegram** (`Telegram/`): Single-process long polling
+```bash
+├── app.py           # Complete bot implementation with polling
+├── requirements.txt # Dependencies: pyTelegramBotAPI, pytz  
+└── .env.example     # Telegram bot token only
+```
 
-**Telegram**:
-- Long polling continuously checks for new messages
-- Inline commands and direct messages both supported
-- No OAuth complexity - simple bot token authentication
+#### Shared Data (`shared/`)
 
-### Shared Data Management
-- **User preferences**: JSON file stores timezone per user ID across all platforms
-- **Timezone aliases**: 200+ common abbreviations mapped to IANA timezone names
-- **Cross-platform consistency**: Same timezone logic and response format everywhere
+```json
+// timezones.json - 200+ timezone aliases
+{
+  "aliases": { "EST": "America/New_York" },
+  "popular": ["UTC", "America/New_York", "Europe/London"]
+}
 
-## Architecture & Frameworks
+// user_preferences.json - Cross-platform user timezones
+{
+  "discord": {"user_id": "timezone"},
+  "slack": {"user_id": "timezone"},
+  "telegram": {"user_id": "timezone"}
+}
+```
 
-This project uses different frameworks for each platform, optimized for their respective APIs and ecosystems:
-
-### Discord Bot (Node.js/Express)
-- **Framework**: Express.js with Discord.js Interactions
-- **Language**: JavaScript (ES6 modules)
-- **Key Libraries**: 
-  - `discord-interactions` - Handles Discord slash commands and message interactions
-  - `express` - HTTP server for Discord webhook interactions
-  - `ws` - WebSocket support for real-time Discord events
-  - `moment-timezone` - Timezone conversion logic
-- **Files**:
-  - `bot.js` - Main bot logic with Express server and Discord event handlers
-  - `register.js` - Registers slash commands with Discord API
-  - `package.json` - Dependencies and scripts configuration
-
-### Slack Bot (Python/Flask + Slack Bolt)
-- **Framework**: Flask for OAuth + Slack Bolt for bot functionality  
-- **Language**: Python 3.8+
-- **Key Libraries**:
-  - `slack-bolt` - Official Slack SDK for building apps with socket mode
-  - `flask` - Web framework for OAuth flow and webhook endpoints
-  - `pytz` - Python timezone handling
-- **Files**:
-  - `app.py` - Main bot using Slack Bolt SDK for real-time events
-  - `oauth_server.py` - Flask server handling OAuth installation flow
-  - `requirements.txt` - Python dependencies
-
-### Telegram Bot (Python/pyTelegramBotAPI)
-- **Framework**: pyTelegramBotAPI (telebot)
-- **Language**: Python 3.8+
-- **Key Libraries**:
-  - `pyTelegramBotAPI` - Lightweight Python wrapper for Telegram Bot API
-  - `pytz` - Timezone conversions
-- **Files**:
-  - `app.py` - Main bot logic with polling and message handling
-  - `requirements.txt` - Python dependencies
+**Why JSON files**: No database dependencies for self-hosting
 
 ## Contributing
 
