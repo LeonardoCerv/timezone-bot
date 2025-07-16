@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>timezone bot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -12,10 +13,10 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            line-height: 1.5;
-            color: #1a1a1a;
-            background: #f8f8f8;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #1d1d1f;
+            background: #fbfbfd;
             min-height: 100vh;
         }
 
@@ -27,20 +28,54 @@
 
         .header {
             margin-bottom: 4rem;
+            text-align: center;
+            position: relative;
         }
 
         .header h1 {
-            font-size: 2.5rem;
-            font-weight: 400;
-            margin-bottom: 0.5rem;
-            color: #1a1a1a;
-            letter-spacing: -0.025em;
+            font-size: 3rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #1d1d1f;
+            letter-spacing: -0.03em;
         }
 
         .header p {
-            font-size: 1rem;
+            font-size: 1.125rem;
+            color: #86868b;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .social-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 0, 0, 0.04);
+            border-radius: 50%;
+            color: #1d1d1f;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-size: 1.125rem;
+        }
+
+        .social-link:hover {
+            background: rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .highlight {
             color: #666;
-            max-width: 500px;
+            font-weight: 500;
         }
 
         .section {
@@ -48,11 +83,11 @@
         }
 
         .section h2 {
-            color: #1a1a1a;
-            font-size: 1.5rem;
-            font-weight: 500;
+            color: #1d1d1f;
+            font-size: 1.75rem;
+            font-weight: 600;
             margin-bottom: 1.5rem;
-            letter-spacing: -0.015em;
+            letter-spacing: -0.02em;
         }
 
         .platform-grid {
@@ -68,6 +103,13 @@
             padding: 2rem 1.5rem;
             border-right: 1px solid #e5e5e5;
             border-bottom: 1px solid #e5e5e5;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .platform-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
         }
 
         .platform-image {
@@ -85,58 +127,111 @@
         }
 
         .platform-card h3 {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-            color: #1a1a1a;
-            font-weight: 500;
+            font-size: 1.125rem;
+            margin-bottom: 0.75rem;
+            color: #1d1d1f;
+            font-weight: 600;
         }
 
         .platform-card p {
             font-size: 0.875rem;
-            color: #666;
-            margin-bottom: 1rem;
-            line-height: 1.4;
+            color: #86868b;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
         }
 
         .install-link {
-            display: inline-block;
-            color: #1a1a1a;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: #fff;
             text-decoration: none;
             font-size: 0.875rem;
-            border-bottom: 1px solid #1a1a1a;
-            padding-bottom: 1px;
+            font-weight: 600;
+            padding: 1rem 1.75rem;
+            background: #1d1d1f;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .install-link:hover {
-            opacity: 0.7;
+            background: #333;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1px;
-            border: 1px solid #e5e5e5;
-            margin-top: 2rem;
+        .install-link.discord {
+            background: #5865f2;
+        }
+
+        .install-link.discord:hover {
+            background: #4752c4;
+        }
+
+        .install-link.slack {
+            background: #4a154b;
+        }
+
+        .install-link.slack:hover {
+            background: #611f69;
+        }
+
+        .install-link.telegram {
+            background: #0088cc;
+        }
+
+        .install-link.telegram:hover {
+            background: #006da6;
+        }
+
+        .features-list {
+            max-width: 600px;
+            margin: 2rem 0;
+            padding: 0;
+            list-style: none;
         }
 
         .feature-item {
-            background: #fff;
-            padding: 1.5rem;
-            border-right: 1px solid #e5e5e5;
-            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            align-items: flex-start;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+            transition: all 0.2s ease;
         }
 
-        .feature-item h4 {
-            color: #1a1a1a;
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-item:hover {
+            transform: translateX(0.5rem);
+        }
+
+        .feature-bullet {
+            width: 4px;
+            height: 4px;
+            background: #1d1d1f;
+            border-radius: 50%;
+            margin-top: 0.75rem;
+            margin-right: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .feature-content h4 {
+            color: #1d1d1f;
             margin-bottom: 0.5rem;
-            font-weight: 500;
-            font-size: 0.875rem;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: -0.01em;
         }
 
-        .feature-item p {
+        .feature-content p {
             font-size: 0.875rem;
-            color: #666;
-            line-height: 1.4;
+            color: #86868b;
+            line-height: 1.6;
+            margin: 0;
         }
 
         .commands {
@@ -167,8 +262,32 @@
             margin-top: 4rem;
             padding-top: 2rem;
             border-top: 1px solid #e5e5e5;
-            color: #666;
+            color: #86868b;
             font-size: 0.875rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .footer-links a {
+            color: #86868b;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: #1d1d1f;
         }
 
         @media (max-width: 768px) {
@@ -176,13 +295,16 @@
                 grid-template-columns: 1fr;
             }
             
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .platform-card,
-            .feature-item {
+            .platform-card {
                 border-right: none;
+            }
+
+            .features-list {
+                max-width: 100%;
+            }
+
+            .feature-item:hover {
+                transform: translateX(0.25rem);
             }
         }
     </style>
@@ -192,20 +314,27 @@
         <header class="header">
             <h1>timezone bot</h1>
             <p>convert times across timezones on discord, slack, and telegram</p>
+            <div class="social-links">
+                <a href="https://github.com/LeonardoCerv/timezone-bot" class="social-link" target="_blank" title="GitHub">
+                    <i class="fab fa-github"></i>
+                </a>
+                <a href="https://linkedin.com/in/leonardo-cerv" class="social-link" target="_blank" title="LinkedIn">
+                    <i class="fab fa-linkedin"></i>
+                </a>
+            </div>
         </header>
 
         <main>
             <section class="section">
             <h2>platforms</h2>
-            <p>identical functionality across all platforms</p>
             
             <div class="platform-grid">
             <div class="platform-card">
                 <img src="Discord.png" alt="Discord Bot" class="platform-image">
                 <h3>discord</h3>
                     <p>slash commands and emoji reactions for time conversion</p>
-                    <a href="https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands" class="install-link" target="_blank">
-                        add to discord →
+                    <a href="https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands" class="install-link discord" target="_blank">
+                        <i class="fab fa-discord"></i> add to discord
                 </a>
             </div>
 
@@ -213,8 +342,8 @@
             <img src="Slack.png" alt="Slack Bot" class="platform-image">
             <h3>slack</h3>
                 <p>slash commands and message shortcuts for workplace integration</p>
-                    <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=" class="install-link" target="_blank">
-                    add to slack →
+                    <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=" class="install-link slack" target="_blank">
+                    <i class="fab fa-slack"></i> add to slack
             </a>
             </div>
 
@@ -222,8 +351,8 @@
             <img src="Telegram.png" alt="Telegram Bot" class="platform-image">
                 <h3>telegram</h3>
                     <p>direct chat or group integration for seamless time conversion</p>
-                <a href="https://t.me/TimeZone123Bot" class="install-link" target="_blank">
-                start bot →
+                <a href="https://t.me/TimeZone123Bot" class="install-link telegram" target="_blank">
+                <i class="fab fa-telegram"></i> start bot
             </a>
             </div>
             </div>
@@ -231,40 +360,35 @@
 
             <section class="section">
                 <h2>features</h2>
-                <div class="features-grid">
-                    <div class="feature-item">
-                        <h4>smart detection</h4>
-                        <p>automatically detects times in various formats: 3:00 PM, 15:30, 3 PM EST</p>
-                    </div>
-                    <div class="feature-item">
-                        <h4>global support</h4>
-                        <p>supports timezone abbreviations, IANA zones, and UTC offsets</p>
-                    </div>
-                    <div class="feature-item">
-                        <h4>personal preferences</h4>
-                        <p>set your timezone once and get automatic conversions</p>
-                    </div>
-                    <div class="feature-item">
-                        <h4>consistent experience</h4>
-                        <p>same commands and behavior across all platforms</p>
-                    </div>
-                    <div class="feature-item">
-                        <h4>instant reactions</h4>
-                        <p>react with time emojis in discord for instant DM conversions</p>
-                    </div>
-                    <div class="feature-item">
-                        <h4>zero configuration</h4>
-                        <p>one-click installation with no complex setup required</p>
-                    </div>
-                </div>
+                <ul class="features-list">
+                    <li class="feature-item">
+                        <div class="feature-bullet"></div>
+                        <div class="feature-content">
+                            <h4>smart detection</h4>
+                            <p>automatically detects times in various formats: 3:00 PM, 15:30, 3 PM EST</p>
+                        </div>
+                    </li>
+                    <li class="feature-item">
+                        <div class="feature-bullet"></div>
+                        <div class="feature-content">
+                            <h4>global support</h4>
+                            <p>supports timezone abbreviations, IANA zones, and UTC offsets</p>
+                        </div>
+                    </li>
+                    <li class="feature-item">
+                        <div class="feature-bullet"></div>
+                        <div class="feature-content">
+                            <h4>personal preferences</h4>
+                            <p>set your timezone once and get automatic conversions</p>
+                        </div>
+                    </li>
+                </ul>
             </section>
 
             <section class="section">
                 <h2>commands</h2>
-                <p>all commands work identically across platforms</p>
                 
                 <div class="commands">
-                    <h3>available commands</h3>
                     <div class="command">
                         <span class="command-name">/timezone &lt;timezone&gt;</span> - set your personal timezone
                     </div>
@@ -281,27 +405,38 @@
             </section>
 
             <section class="section">
-                <h2>implementation</h2>
-                <p>open source project available on <a href="https://github.com/leonardocerv/timezone-bot" class="install-link" target="_blank">github →</a></p>
+                <div class="">
+                    <h2>implementation</h2>
+                    <a href="https://github.com/leonardocerv/timezone-bot" class="install-link" target="_blank"><i class="fab fa-github"></i> open source project on github</a>
+                </div>
+                
                 <div class="features-grid">
                     <div class="feature-item">
                         <h4>discord bot</h4>
-                        <p>node.js with discord-interactions and moment-timezone</p>
+                        <p>&nbsp;node.js with discord-interactions</p>
                     </div>
                     <div class="feature-item">
                         <h4>slack bot</h4>
-                        <p>python with slack bolt sdk and pytz</p>
+                        <p>&nbsp;python with slack bolt sdk and pytz</p>
                     </div>
                     <div class="feature-item">
                         <h4>telegram bot</h4>
-                        <p>python with pytelegrambotapi and pytz</p>
+                        <p>&nbsp;python with pytelegrambotapi and pytz</p>
                     </div>
                 </div>
             </section>
         </main>
 
         <footer class="footer">
-            <p>timezone bot – built for global teams</p>
+            <div class="footer-links">
+                <a href="https://github.com/LeonardoCerv/timezone-bot" target="_blank">
+                    <i class="fab fa-github"></i> github
+                </a>
+                <a href="https://linkedin.com/in/leonardo-cerv" target="_blank">
+                    <i class="fab fa-linkedin"></i> linkedin
+                </a>
+            </div>
+            <p>timezone bot – Leonardo Cervantes</p>
         </footer>
     </div>
 </body>
