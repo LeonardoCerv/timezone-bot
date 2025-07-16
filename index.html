@@ -70,6 +70,16 @@
             border-bottom: 1px solid #e5e5e5;
         }
 
+        .platform-image {
+            width: 100%;
+            max-width: 200px;
+            height: 150px;
+            object-fit: fill;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
         .platform-card:last-child {
             border-right: none;
         }
@@ -186,34 +196,37 @@
 
         <main>
             <section class="section">
-                <h2>platforms</h2>
-                <p>identical functionality across all platforms</p>
-                
-                <div class="platform-grid">
-                    <div class="platform-card">
-                        <h3>discord</h3>
-                        <p>slash commands and emoji reactions for time conversion</p>
-                        <a href="https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands" class="install-link" target="_blank">
-                            add to discord →
-                        </a>
-                    </div>
+            <h2>platforms</h2>
+            <p>identical functionality across all platforms</p>
+            
+            <div class="platform-grid">
+            <div class="platform-card">
+                <img src="Discord.png" alt="Discord Bot" class="platform-image">
+                <h3>discord</h3>
+                    <p>slash commands and emoji reactions for time conversion</p>
+                    <a href="https://discord.com/oauth2/authorize?client_id=1392192666053251143&permissions=8&integration_type=0&scope=bot+applications.commands" class="install-link" target="_blank">
+                        add to discord →
+                </a>
+            </div>
 
-                    <div class="platform-card">
-                        <h3>slack</h3>
-                        <p>slash commands and message shortcuts for workplace integration</p>
-                        <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=" class="install-link" target="_blank">
-                            add to slack →
-                        </a>
-                    </div>
+            <div class="platform-card">
+            <img src="Slack.png" alt="Slack Bot" class="platform-image">
+            <h3>slack</h3>
+                <p>slash commands and message shortcuts for workplace integration</p>
+                    <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=" class="install-link" target="_blank">
+                    add to slack →
+            </a>
+            </div>
 
-                    <div class="platform-card">
-                        <h3>telegram</h3>
-                        <p>direct chat or group integration for seamless time conversion</p>
-                        <a href="https://t.me/TimeZone123Bot" class="install-link" target="_blank">
-                            start bot →
-                        </a>
-                    </div>
-                </div>
+            <div class="platform-card">
+            <img src="Telegram.png" alt="Telegram Bot" class="platform-image">
+                <h3>telegram</h3>
+                    <p>direct chat or group integration for seamless time conversion</p>
+                <a href="https://t.me/TimeZone123Bot" class="install-link" target="_blank">
+                start bot →
+            </a>
+            </div>
+            </div>
             </section>
 
             <section class="section">
