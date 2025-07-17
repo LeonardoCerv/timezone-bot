@@ -9,6 +9,7 @@ import hmac
 import time
 from datetime import datetime
 from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt.oauth import OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
@@ -17,7 +18,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# OAuth configuration
+# Socket mode configuration
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
+
+# OAuth configuration (for installation)
 SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
 SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET")
 SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "https://slackbot.leonardocerv.hackclub.app/oauth")
@@ -331,88 +336,11 @@ def save_team_token(team_id, access_token, bot_user_id, team_data=None):
         print(f"ERROR: Error saving team token: {e}")
         return False
 
-# Slack app setup - use proper authorization flow with xoxe token support
-def authorize(enterprise_id, team_id, user_id):
-    """Authorize function that returns AuthorizeResult"""
-    from slack_bolt.authorization import AuthorizeResult
-    
-    print(f"=== AUTHORIZE CALLED ===")
-    print(f"Team: {team_id}, Enterprise: {enterprise_id}, User: {user_id}")
-    
-    # Reload tokens from file each time to ensure we have the latest
-    tokens = load_team_tokens()
-    if not tokens:
-        print("ERROR: No tokens loaded at all")
-        return None
-    
-    # Get token for team
-    team_data = tokens.get(team_id, {})
-    token = team_data.get('access_token')
-    
-    if not token:
-        print(f"ERROR: No token found for team {team_id}")
-        print(f"Available teams: {list(tokens.keys())}")
-        # Try to find similar team IDs in case of mismatch
-        for tid in tokens.keys():
-            if tid and team_id and tid[-8:] == team_id[-8:]:
-                print(f"Found similar team ID: {tid}")
-        return None
-    
-    # Get bot user ID from saved data
-    bot_user_id = team_data.get('bot_user_id')
-    
-    print(f"Found token for team {team_id}")
-    print(f"Bot user ID: {bot_user_id}")
-    print(f"Token type: {type(token)}, starts with: {token[:10] if token else 'None'}")
-    
-    # Validate token format
-    if not token or not isinstance(token, str):
-        print(f"ERROR: Invalid token format for team {team_id}")
-        return None
-    
-    if not token.startswith(('xoxb-', 'xoxe-')):
-        print(f"ERROR: Token doesn't start with expected prefix for team {team_id}")
-        return None
-    
-    # Return AuthorizeResult - handle both xoxb and xoxe tokens
-    try:
-        # For newer Slack Bolt versions, ensure we have the right parameters
-        result = AuthorizeResult(
-            enterprise_id=enterprise_id,
-            team_id=team_id,
-            user_id=user_id,
-            bot_token=token,
-            bot_id=bot_user_id,  # Some versions expect bot_id instead of bot_user_id
-            bot_user_id=bot_user_id,
-            user_token=None,
-            is_enterprise_install=False
-        )
-        print(f"Successfully created AuthorizeResult for team {team_id}")
-        return result
-    except Exception as e:
-        print(f"ERROR: Error creating AuthorizeResult for team {team_id}: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Try fallback with minimal parameters
-        try:
-            result = AuthorizeResult(
-                enterprise_id=enterprise_id,
-                team_id=team_id,
-                user_id=user_id,
-                bot_token=token,
-                bot_user_id=bot_user_id
-            )
-            print(f"Successfully created AuthorizeResult (fallback) for team {team_id}")
-            return result
-        except Exception as fallback_e:
-            print(f"ERROR: Fallback also failed for team {team_id}: {fallback_e}")
-            return None
-
+# Socket mode app setup - much simpler!
 app = App(
-    authorize=authorize,
+    token=SLACK_BOT_TOKEN,
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-    process_before_response=True  # Handle events asynchronously
+    process_before_response=True
 )
 
 @app.event("app_installed")
@@ -430,25 +358,16 @@ def handle_app_uninstalled(event, context):
     # Could remove token here if needed
 
 @app.event("message")
-def handle_message(event, say, context):
+def handle_message(event, say):
     try:
         if event.get("subtype") == "bot_message" or event.get("bot_id"):
             return
         
-        team_id = context.get("team_id")
         user_id = event.get("user")
-        print(f"Processing message from team {team_id}, user {user_id}")
-        
-        # Check if we have authorization for this team
-        if not team_id:
-            print("❌ No team_id in context")
-            return
-            
         text = event.get("text", "")
         
         user_timezone = get_user_timezone(user_id)
         if not user_timezone:
-            print(f"No timezone set for user {user_id}")
             return
         
         conversions = convert_times(text, user_timezone)
@@ -465,15 +384,10 @@ def handle_message(event, say, context):
             say(response.strip())
     except Exception as e:
         print(f"Error handling message: {e}")
-        import traceback
-        traceback.print_exc()
 
 @app.event("app_mention")
-def handle_app_mention(event, say, context):
+def handle_app_mention(event, say):
     try:
-        team_id = context.get("team_id")
-        print(f"Processing app mention from team {team_id}")
-        
         text = event.get("text", "")
         user_id = event.get("user")
         
@@ -498,17 +412,12 @@ def handle_app_mention(event, say, context):
             say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
     except Exception as e:
         print(f"Error handling app mention: {e}")
-        import traceback
-        traceback.print_exc()
 
 @app.command("/timezone")
-def set_timezone_command(ack, respond, command, context):
+def set_timezone_command(ack, respond, command):
     ack()
     
     try:
-        team_id = context.get("team_id")
-        print(f"Processing /timezone command from team {team_id}")
-    
         timezone_input = command['text'].strip()
         user_id = command['user_id']
         
@@ -544,13 +453,10 @@ def set_timezone_command(ack, respond, command, context):
         respond("An error occurred while processing your request.")
 
 @app.command("/convert")
-def convert_time_command(ack, respond, command, context):
+def convert_time_command(ack, respond, command):
     ack()
     
     try:
-        team_id = context.get("team_id")
-        print(f"Processing /convert command from team {team_id}")
-    
         text = command['text'].strip()
         user_id = command['user_id']
         
@@ -608,13 +514,10 @@ def convert_time_command(ack, respond, command, context):
         respond("An error occurred while processing your request.")
 
 @app.command("/mytimezone")
-def show_timezone_command(ack, respond, command, context):
+def show_timezone_command(ack, respond, command):
     ack()
     
     try:
-        team_id = context.get("team_id")
-        print(f"Processing /mytimezone command from team {team_id}")
-        
         user_id = command['user_id']
         user_timezone = get_user_timezone(user_id)
         
@@ -642,13 +545,10 @@ def show_timezone_command(ack, respond, command, context):
         respond("An error occurred while processing your request.")
 
 @app.command("/help")
-def help_command(ack, respond, command, context):
+def help_command(ack, respond, command):
     ack()
     
     try:
-        team_id = context.get("team_id")
-        print(f"Processing /help command from team {team_id}")
-    
         help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
 /timezone <timezone> - Set your timezone
 /time <time> - Convert a time
@@ -1214,8 +1114,8 @@ def error():
     return render_template_string(ERROR_TEMPLATE)
 
 def validate_environment():
-    """Validate required environment variables"""
-    required_vars = ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']
+    """Validate required environment variables for socket mode"""
+    required_vars = ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'SLACK_SIGNING_SECRET']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     
     if missing_vars:
@@ -1225,23 +1125,21 @@ def validate_environment():
     return True
 
 if __name__ == "__main__":
-    print("Starting Timezone Bot...")
+    print("Starting Timezone Bot in Socket Mode...")
     
     # Validate environment
     if not validate_environment():
         exit(1)
     
-    print("Starting integrated Slack bot server...")
-    print("Local URL: http://localhost:8944")
-    print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
-    print("OAuth Redirect URI: https://slackbot.leonardocerv.hackclub.app/oauth")
-    print("Events endpoint: https://slackbot.leonardocerv.hackclub.app/")
+    print("Socket Mode - No HTTP server needed!")
+    print("Bot will connect directly to Slack via WebSocket")
     
     init_user_prefs()
     
     try:
-        # Run the Flask app for handling Slack events and OAuth
-        flask_app.run(host='0.0.0.0', port=8944, debug=False)
+        # Socket mode handler
+        handler = SocketModeHandler(app, SLACK_APP_TOKEN)
+        handler.start()
     except KeyboardInterrupt:
         print("\nBot stopped")
     except Exception as e:
