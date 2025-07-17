@@ -468,9 +468,10 @@ def start_web_server():
     """Start the web server in a separate process"""
     try:
         print("Starting web server...")
-        # Run the web_server.py as a subprocess
+        # Use sys.executable to get the current Python interpreter
+        import sys
         subprocess.Popen(
-            ["python", "web_server.py"],
+            [sys.executable, "web_server.py"],
             cwd=os.path.dirname(os.path.abspath(__file__))
         )
         print("Web server started")
@@ -482,8 +483,84 @@ if __name__ == '__main__':
     print("Starting Timezone Bot...")
     print("Commands: /timezone EST, /convert '3:00PM EST', /mytimezone, /help")
     
+    # Check if bot token is set
+    if not os.environ.get('TELEGRAM_BOT_TOKEN'):
+        print("Error: TELEGRAM_BOT_TOKEN is not set in environment variables")
+        exit(1)
+    
     # Start web server first
     start_web_server()
     
     init_user_prefs()
-    bot.infinity_polling()
+    
+    # Start bot with error handling and restart mechanism
+    import time
+    import requests
+    from telebot.apihelper import ApiTelegramException
+    
+    max_retries = 5
+    retry_delay = 10  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Starting bot (attempt {attempt + 1}/{max_retries})...")
+            
+            # Test the bot token first
+            try:
+                me = bot.get_me()
+                print(f"Bot authenticated: @{me.username}")
+            except Exception as e:
+                print(f"Bot authentication failed: {e}")
+                if attempt == max_retries - 1:
+                    print("Max retries reached. Exiting.")
+                    exit(1)
+                time.sleep(retry_delay)
+                continue
+            
+            # Start polling with error handling
+            bot.infinity_polling(
+                timeout=30,
+                long_polling_timeout=30,
+                logger_level=40,  # ERROR level
+                allowed_updates=None,
+                restart_on_change=False,
+                skip_pending=True
+            )
+            
+            # If we reach here, polling stopped normally
+            print("Bot polling stopped normally")
+            break
+            
+        except ApiTelegramException as e:
+            print(f"Telegram API error: {e}")
+            if "unauthorized" in str(e).lower():
+                print("Invalid bot token. Please check TELEGRAM_BOT_TOKEN environment variable.")
+                exit(1)
+            elif attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                print("Max retries reached. Exiting.")
+                exit(1)
+                
+        except requests.exceptions.ConnectionError as e:
+            print(f"Network connection error: {e}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                print("Max retries reached. Exiting.")
+                exit(1)
+                
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            import traceback
+            traceback.print_exc()
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                print("Max retries reached. Exiting.")
+                exit(1)
+    
+    print("Bot stopped.")
