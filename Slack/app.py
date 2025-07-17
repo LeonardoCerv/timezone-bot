@@ -336,12 +336,20 @@ def save_team_token(team_id, access_token, bot_user_id, team_data=None):
         print(f"ERROR: Error saving team token: {e}")
         return False
 
-# Socket mode app setup - much simpler!
-app = App(
-    token=SLACK_BOT_TOKEN,
-    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-    process_before_response=True
-)
+# Socket mode app setup with OAuth support
+if SLACK_BOT_TOKEN:
+    # Use socket mode with fixed bot token
+    app = App(
+        token=SLACK_BOT_TOKEN,
+        signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+        process_before_response=True
+    )
+else:
+    # Fallback to OAuth mode for development/testing
+    app = App(
+        signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+        process_before_response=True
+    )
 
 @app.event("app_installed")
 def handle_app_installed(event, say, context):
@@ -993,7 +1001,14 @@ def slack_events():
     """Handle Slack events (backup endpoint)"""
     return handler.handle(request)
 
-# OAuth install route is now at /install
+@flask_app.route("/status")
+def status():
+    """Status endpoint"""
+    return {
+        "status": "running",
+        "mode": "socket" if SLACK_BOT_TOKEN and SLACK_APP_TOKEN else "http",
+        "oauth_enabled": bool(SLACK_CLIENT_ID and SLACK_CLIENT_SECRET)
+    }
 
 @flask_app.route("/health")
 def health():
@@ -1114,33 +1129,56 @@ def error():
     return render_template_string(ERROR_TEMPLATE)
 
 def validate_environment():
-    """Validate required environment variables for socket mode"""
-    required_vars = ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'SLACK_SIGNING_SECRET']
-    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    """Validate required environment variables"""
+    # For socket mode operation
+    bot_vars = ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'SLACK_SIGNING_SECRET']
+    # For OAuth installation
+    oauth_vars = ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']
     
-    if missing_vars:
-        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+    missing_bot_vars = [var for var in bot_vars if not os.environ.get(var)]
+    missing_oauth_vars = [var for var in oauth_vars if not os.environ.get(var)]
+    
+    if missing_bot_vars and missing_oauth_vars:
+        print(f"Error: Missing environment variables for both modes:")
+        print(f"  Socket mode: {', '.join(missing_bot_vars)}")
+        print(f"  OAuth mode: {', '.join(missing_oauth_vars)}")
         return False
     
     return True
 
 if __name__ == "__main__":
-    print("Starting Timezone Bot in Socket Mode...")
+    print("Starting Timezone Bot...")
     
     # Validate environment
     if not validate_environment():
         exit(1)
     
-    print("Socket Mode - No HTTP server needed!")
-    print("Bot will connect directly to Slack via WebSocket")
-    
     init_user_prefs()
     
+    # Start socket mode handler in background if tokens are available
+    if SLACK_BOT_TOKEN and SLACK_APP_TOKEN:
+        print("Socket Mode: Bot will connect directly to Slack via WebSocket")
+        import threading
+        def start_socket_mode():
+            try:
+                handler = SocketModeHandler(app, SLACK_APP_TOKEN)
+                handler.start()
+            except Exception as e:
+                print(f"Socket mode error: {e}")
+        
+        socket_thread = threading.Thread(target=start_socket_mode, daemon=True)
+        socket_thread.start()
+    else:
+        print("Socket Mode: Disabled (missing SLACK_BOT_TOKEN or SLACK_APP_TOKEN)")
+    
+    # Always start Flask server for OAuth installation
+    print("Flask Server: Running on port 8944 for OAuth installation")
+    print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
+    print("Status URL: https://slackbot.leonardocerv.hackclub.app/status")
+    
     try:
-        # Socket mode handler
-        handler = SocketModeHandler(app, SLACK_APP_TOKEN)
-        handler.start()
+        flask_app.run(host='0.0.0.0', port=8944, debug=False)
     except KeyboardInterrupt:
         print("\nBot stopped")
     except Exception as e:
-        print(f"Error starting bot: {e}")
+        print(f"Error starting Flask server: {e}")
