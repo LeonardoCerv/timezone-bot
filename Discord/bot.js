@@ -420,7 +420,7 @@ class GatewayClient {
 
 // Express app setup
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8943;
 app.use(express.json());
 
 function createResponse(message, ephemeral = true) {

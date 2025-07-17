@@ -73,7 +73,7 @@ cd Discord/
 npm install                 # Installs express, discord-interactions, ws, moment-timezone
 cp .env.example .env       # Copy environment template and fill with your tokens
 npm run register           # Registers slash commands with Discord API
-npm run dev               # Starts Express server on port 3000
+npm run dev               # Starts Express server on port 8943
 ```
 > 💡 **Setup tip**: Copy `.env.example` to `.env` and fill in your Discord bot credentials from the [Discord Developer Portal](https://discord.com/developers/applications)
 
@@ -83,7 +83,7 @@ cd Slack/
 pip install -r requirements.txt  # Installs slack-bolt, flask, pytz
 cp .env.example .env             # Copy environment template and fill with your tokens
 python oauth_server.py           # Start OAuth server (port 8944)
-python app.py                    # Start main bot (separate process)
+python app.py                    # Start main bot server (port 8945)
 ```
 > 💡 **Setup tip**: Copy `.env.example` to `.env` and fill in your Slack app credentials from the [Slack API Dashboard](https://api.slack.com/apps)
 
@@ -93,6 +93,7 @@ cd Telegram/
 pip install -r requirements.txt  # Installs pyTelegramBotAPI, pytz
 cp .env.example .env             # Copy environment template and fill with your token
 python app.py                    # Start bot with long polling
+python web_server.py             # Start web server (port 8946)
 ```
 > 💡 **Setup tip**: Copy `.env.example` to `.env` and fill in your bot token from [@BotFather](https://t.me/BotFather) on Telegram
 

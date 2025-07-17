@@ -644,7 +644,7 @@ def install():
 @flask_app.route("/health")
 def health():
     """Health check endpoint"""
-    return {"status": "ok", "service": "timezone-bot-main", "port": 3000}
+    return {"status": "ok", "service": "timezone-bot-main", "port": 8945}
 
 @flask_app.route("/status")
 def status():
@@ -685,7 +685,7 @@ if __name__ == "__main__":
     
     try:
         # Run the Flask app for handling Slack events
-        flask_app.run(host='0.0.0.0', port=3000, debug=False)
+        flask_app.run(host='0.0.0.0', port=8945, debug=False)
     except KeyboardInterrupt:
         print("\nBot stopped")
         if oauth_process:

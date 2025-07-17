@@ -350,5 +350,5 @@ if __name__ == '__main__':
     print(f"Bot Username: @{BOT_USERNAME}")
     
     # Run the Flask app
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 8946))
     app.run(host='0.0.0.0', port=port, debug=False)
