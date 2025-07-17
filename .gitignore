@@ -31,3 +31,15 @@ logs/
 
 # User data (comment out if you want to track preferences)
 # shared/user_preferences.json
+
+# Token files (should not be committed)
+Slack/team_tokens.json
+Telegram/telegram_users.json
+
+# Virtual environments
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/

@@ -297,7 +297,13 @@ def save_user_auth(user_data):
 
 @app.route('/')
 def index():
-    """Show the installation page"""
+    """Show the installation page or handle challenge parameter"""
+    # Check if challenge parameter is provided
+    challenge = request.args.get('challenge')
+    if challenge:
+        return challenge
+    
+    # Otherwise, show the installation page
     return render_template_string(INSTALL_TEMPLATE, bot_username=BOT_USERNAME)
 
 @app.route('/install')

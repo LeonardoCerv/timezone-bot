@@ -266,10 +266,13 @@ def load_team_tokens():
         try:
             with open(tokens_file, 'r') as f:
                 tokens = json.load(f)
-                print(f"Loaded {len(tokens)} team tokens")
+                print(f"Loaded {len(tokens)} team tokens from {tokens_file}")
                 return tokens
-        except json.JSONDecodeError:
-            print("Error: team_tokens.json is corrupted")
+        except json.JSONDecodeError as e:
+            print(f"Error: team_tokens.json is corrupted: {e}")
+            return {}
+        except Exception as e:
+            print(f"Error loading team tokens: {e}")
             return {}
     else:
         print("Warning: team_tokens.json not found - no teams installed yet")
@@ -285,23 +288,44 @@ def authorize(enterprise_id, team_id, user_id):
     """Authorize function that returns AuthorizeResult"""
     from slack_bolt.authorization import AuthorizeResult
     
-    print(f"Authorizing team {team_id}, enterprise_id: {enterprise_id}")
+    print(f"=== AUTHORIZE CALLED ===")
+    print(f"Team: {team_id}, Enterprise: {enterprise_id}, User: {user_id}")
+    
+    # Reload tokens from file each time to ensure we have the latest
+    tokens = load_team_tokens()
+    if not tokens:
+        print("No tokens loaded at all")
+        return None
     
     # Get token for team
-    token = get_team_token(team_id)
+    token = tokens.get(team_id, {}).get('access_token')
     if not token:
-        print(f"No token found for team {team_id}")
+        print(f"❌ No token found for team {team_id}")
+        print(f"Available teams: {list(tokens.keys())}")
+        # Try to find similar team IDs in case of mismatch
+        for tid in tokens.keys():
+            if tid and team_id and tid[-8:] == team_id[-8:]:
+                print(f"Found similar team ID: {tid}")
         return None
     
     # Get bot user ID from saved data
-    tokens = load_team_tokens()
     team_data = tokens.get(team_id, {})
     bot_user_id = team_data.get('bot_user_id')
     
-    print(f"Found token for team {team_id}, bot_user_id: {bot_user_id}")
-    print(f"Token type: {token[:4] if token else 'None'}")
+    print(f"✅ Found token for team {team_id}")
+    print(f"Bot user ID: {bot_user_id}")
+    print(f"Token type: {type(token)}, starts with: {token[:10] if token else 'None'}")
     
-    # Return AuthorizeResult - this should work with xoxe tokens
+    # Validate token format
+    if not token or not isinstance(token, str):
+        print(f"❌ Invalid token format for team {team_id}")
+        return None
+    
+    if not token.startswith(('xoxb-', 'xoxe-')):
+        print(f"❌ Token doesn't start with expected prefix for team {team_id}")
+        return None
+    
+    # Return AuthorizeResult - handle both xoxb and xoxe tokens
     try:
         result = AuthorizeResult(
             enterprise_id=enterprise_id,
@@ -312,10 +336,10 @@ def authorize(enterprise_id, team_id, user_id):
             bot_user_id=bot_user_id,
             user_token=None
         )
-        print(f"Successfully created AuthorizeResult for team {team_id}")
+        print(f"✅ Successfully created AuthorizeResult for team {team_id}")
         return result
     except Exception as e:
-        print(f"Error creating AuthorizeResult for team {team_id}: {e}")
+        print(f"❌ Error creating AuthorizeResult for team {team_id}: {e}")
         import traceback
         traceback.print_exc()
         return None

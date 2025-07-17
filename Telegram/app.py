@@ -128,18 +128,6 @@ def get_user_timezone(user_id):
     data = read_user_prefs()
     return data.get('users', {}).get(str(user_id), {}).get('timezone')
 
-def is_user_authenticated(user_id):
-    """Check if user is authenticated through web interface"""
-    users_file = 'telegram_users.json'
-    if os.path.exists(users_file):
-        try:
-            with open(users_file, 'r') as f:
-                users = json.load(f)
-                return str(user_id) in users and users[str(user_id)].get('authenticated', False)
-        except json.JSONDecodeError:
-            return False
-    return False
-
 # Time parsing and conversion
 def extract_times(content):
     patterns = [
@@ -261,6 +249,22 @@ def convert_times(content, target_timezone):
     
     return results
 
+def format_conversion_response(conversions, user_timezone):
+    """Format conversions into a response message"""
+    if not conversions:
+        return None
+    
+    response = (response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone)
+    for conv in conversions:
+        template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                   if conv['same_day'] 
+                   else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+        
+        line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+        response += f"{line}\n"
+    
+    return response.strip()
+
 # Bot setup
 bot = telebot.TeleBot(os.environ.get('TELEGRAM_BOT_TOKEN'))
 
@@ -268,17 +272,12 @@ bot = telebot.TeleBot(os.environ.get('TELEGRAM_BOT_TOKEN'))
 def send_welcome(message):
     user_id = message.from_user.id
     user_timezone = get_user_timezone(user_id)
-    is_authenticated = is_user_authenticated(user_id)
-    
-    auth_status = "✅ Authenticated" if is_authenticated else "❌ Not authenticated"
-    auth_info = "" if is_authenticated else "\n\n**🔗 Link your account:** Visit https://telegrambot.leonardocerv.hackclub.app to authenticate and enable full features."
     
     welcome_text = f"""**Welcome to Timezone Bot!**
 
 I automatically convert times between timezones.
 
 **Your timezone:** `{user_timezone or 'Not set'}`
-**Authentication:** {auth_status}{auth_info}
 
 **Commands:**
 /timezone EST - Set your timezone
@@ -397,16 +396,8 @@ def handle_convert(message):
                 })
     
     if conversions:
-        response = (response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone)
-        for conv in conversions:
-            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                       if conv['same_day'] 
-                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-            
-            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-            response += f"{line}\n"
-        
-        bot.reply_to(message, response.strip(), parse_mode="Markdown")
+        response = format_conversion_response(conversions, user_timezone)
+        bot.reply_to(message, response, parse_mode="Markdown")
     else:
         bot.reply_to(message,
             response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*"),
@@ -453,16 +444,8 @@ def handle_message(message):
     conversions = convert_times(message.text, user_timezone)
     
     if conversions:
-        response = (response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone)
-        for conv in conversions:
-            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                       if conv['same_day'] 
-                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-            
-            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-            response += f"{line}\n"
-        
-        bot.reply_to(message, response.strip(), parse_mode="Markdown")
+        response = format_conversion_response(conversions, user_timezone)
+        bot.reply_to(message, response, parse_mode="Markdown")
 
 def start_web_server():
     """Start the web server in a separate process"""
