@@ -360,17 +360,20 @@ def oauth_callback():
         
         # Extract important information
         team_id = token_data.get('team', {}).get('id')
-        access_token = token_data.get('access_token')
+        # For OAuth2, the access_token is the bot token we need
+        bot_token = token_data.get('access_token')
         bot_user_id = token_data.get('bot_user_id')
         
-        print(f"OAuth response: team_id={team_id}, bot_user_id={bot_user_id}, has_token={bool(access_token)}")
+        print(f"OAuth response: team_id={team_id}, bot_user_id={bot_user_id}, has_token={bool(bot_token)}")
+        print(f"Token type: {type(bot_token)}, starts with: {bot_token[:10] if bot_token else 'None'}")
+        print(f"Full token data: {json.dumps(token_data, indent=2)}")
         
-        if not all([team_id, access_token, bot_user_id]):
-            print(f"Missing required OAuth data: team_id={team_id}, access_token={bool(access_token)}, bot_user_id={bot_user_id}")
+        if not all([team_id, bot_token, bot_user_id]):
+            print(f"Missing required OAuth data: team_id={team_id}, bot_token={bool(bot_token)}, bot_user_id={bot_user_id}")
             return redirect('/error')
         
         # Save the team's token
-        if not save_team_token(team_id, access_token, bot_user_id):
+        if not save_team_token(team_id, bot_token, bot_user_id):
             print(f"Failed to save token for team {team_id}")
             return redirect('/error')
         

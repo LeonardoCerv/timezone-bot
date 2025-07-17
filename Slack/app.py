@@ -275,30 +275,17 @@ def get_team_token(team_id):
     tokens = load_team_tokens()
     return tokens.get(team_id, {}).get('access_token')
 
-# Slack app setup - use proper authorization flow
+# Slack app setup - use proper authorization flow with xoxe token support
 def authorize(enterprise_id, team_id, user_id):
     """Authorize function that returns AuthorizeResult"""
     from slack_bolt.authorization import AuthorizeResult
     
-    print(f"Authorizing team {team_id}")
+    print(f"Authorizing team {team_id}, enterprise_id: {enterprise_id}")
     
     # Get token for team
     token = get_team_token(team_id)
     if not token:
         print(f"No token found for team {team_id}")
-        # Try fallback token for development
-        fallback_token = os.environ.get("SLACK_BOT_TOKEN")
-        if fallback_token:
-            print(f"Using fallback token for team {team_id}")
-            return AuthorizeResult(
-                enterprise_id=enterprise_id,
-                team_id=team_id,
-                user_id=user_id,
-                bot_token=fallback_token,
-                bot_id=None,
-                bot_user_id=None,
-                user_token=None
-            )
         return None
     
     # Get bot user ID from saved data
@@ -307,16 +294,26 @@ def authorize(enterprise_id, team_id, user_id):
     bot_user_id = team_data.get('bot_user_id')
     
     print(f"Found token for team {team_id}, bot_user_id: {bot_user_id}")
+    print(f"Token type: {token[:4] if token else 'None'}")
     
-    return AuthorizeResult(
-        enterprise_id=enterprise_id,
-        team_id=team_id,
-        user_id=user_id,
-        bot_token=token,
-        bot_id=None,
-        bot_user_id=bot_user_id,
-        user_token=None
-    )
+    # Return AuthorizeResult - this should work with xoxe tokens
+    try:
+        result = AuthorizeResult(
+            enterprise_id=enterprise_id,
+            team_id=team_id,
+            user_id=user_id,
+            bot_token=token,
+            bot_id=None,
+            bot_user_id=bot_user_id,
+            user_token=None
+        )
+        print(f"Successfully created AuthorizeResult for team {team_id}")
+        return result
+    except Exception as e:
+        print(f"Error creating AuthorizeResult for team {team_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 app = App(
     authorize=authorize,
