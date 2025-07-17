@@ -6,7 +6,8 @@ import threading
 import subprocess
 from datetime import datetime
 from slack_bolt import App
-from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_bolt.adapter.flask import SlackRequestHandler
+from flask import Flask, request
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -255,13 +256,54 @@ def convert_times(content, target_timezone):
     
     return results
 
-# Slack app setup
-app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
+# Token management
+def load_team_tokens():
+    """Load team tokens from JSON file"""
+    tokens_file = 'team_tokens.json'
+    if os.path.exists(tokens_file):
+        try:
+            with open(tokens_file, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def get_team_token(team_id):
+    """Get access token for a specific team"""
+    tokens = load_team_tokens()
+    return tokens.get(team_id, {}).get('access_token')
+
+# Slack app setup - use a token lookup function for multi-workspace support
+def token_lookup(team_id):
+    """Token lookup function for multi-workspace support"""
+    if not team_id:
+        print("Warning: No team_id provided for token lookup")
+        return None
+    
+    token = get_team_token(team_id)
+    if not token:
+        print(f"Warning: No token found for team {team_id}")
+        return None
+    
+    return token
+
+app = App(
+    token=token_lookup,
+    signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
+)
 
 @app.event("message")
-def handle_message(event, say):
+def handle_message(event, say, context):
     if event.get("subtype") == "bot_message" or event.get("bot_id"):
         return
+    
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        print(f"No token found for team {team_id}, skipping message")
+        return
+    
+    print(f"Processing message from team {team_id}")
     
     text = event.get("text", "")
     user_id = event.get("user")
@@ -284,7 +326,12 @@ def handle_message(event, say):
         say(response.strip())
 
 @app.event("app_mention")
-def handle_app_mention(event, say):
+def handle_app_mention(event, say, context):
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        return
+    
     text = event.get("text", "")
     user_id = event.get("user")
     
@@ -309,8 +356,17 @@ def handle_app_mention(event, say):
         say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
 
 @app.command("/timezone")
-def set_timezone_command(ack, respond, command):
+def set_timezone_command(ack, respond, command, context):
     ack()
+    
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        print(f"No token found for team {team_id}, rejecting /timezone command")
+        respond("Bot not properly installed for this workspace.")
+        return
+    
+    print(f"Processing /timezone command from team {team_id}")
     
     timezone_input = command['text'].strip()
     user_id = command['user_id']
@@ -343,8 +399,14 @@ def set_timezone_command(ack, respond, command):
         respond(format_for_slack(response_messages.get('errors', {}).get('failed_to_save', "Failed to save timezone")))
 
 @app.command("/convert")
-def convert_time_command(ack, respond, command):
+def convert_time_command(ack, respond, command, context):
     ack()
+    
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        respond("Bot not properly installed for this workspace.")
+        return
     
     text = command['text'].strip()
     user_id = command['user_id']
@@ -399,8 +461,14 @@ def convert_time_command(ack, respond, command):
     respond(response.strip())
 
 @app.command("/mytimezone")
-def show_timezone_command(ack, respond, command):
+def show_timezone_command(ack, respond, command, context):
     ack()
+    
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        respond("Bot not properly installed for this workspace.")
+        return
     
     user_id = command['user_id']
     user_timezone = get_user_timezone(user_id)
@@ -425,8 +493,14 @@ def show_timezone_command(ack, respond, command):
         respond(format_for_slack((response_messages.get('success', {}).get('mytimezone_simple', "**Your timezone:** `{timezone}`")).replace('{timezone}', user_timezone)))
 
 @app.command("/help")
-def help_command(ack, respond, command):
+def help_command(ack, respond, command, context):
     ack()
+    
+    # Check if we have a token for this team
+    team_id = context.get("team_id")
+    if not team_id or not get_team_token(team_id):
+        respond("Bot not properly installed for this workspace.")
+        return
     
     help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
 /timezone <timezone> - Set your timezone
@@ -463,10 +537,48 @@ def start_oauth_server():
             ["python", "oauth_server.py"],
             cwd=os.path.dirname(os.path.abspath(__file__))
         )
-        print("OAuth server started on http://localhost:3000")
-        print("Install URL: http://localhost:3000/install")
+        print("OAuth server started on http://localhost:8944")
+        print("Install URL: http://localhost:8944/install")
     except Exception as e:
         print(f"Failed to start OAuth server: {e}")
+
+# Flask app for handling Slack events
+flask_app = Flask(__name__)
+handler = SlackRequestHandler(app)
+
+@flask_app.route("/slack/events", methods=["POST"])
+def slack_events():
+    """Handle Slack events"""
+    return handler.handle(request)
+
+@flask_app.route("/slack/install", methods=["GET"])
+def install():
+    """Redirect to OAuth server install page"""
+    return f'<script>window.location.href="http://localhost:8944/install";</script>'
+
+@flask_app.route("/health")
+def health():
+    """Health check endpoint"""
+    return {"status": "ok", "service": "timezone-bot"}
+
+@flask_app.route("/status")
+def status():
+    """Show bot status and installed teams"""
+    tokens = load_team_tokens()
+    
+    team_list = []
+    for team_id, data in tokens.items():
+        team_list.append({
+            'team_id': team_id,
+            'bot_user_id': data.get('bot_user_id'),
+            'has_token': bool(data.get('access_token'))
+        })
+    
+    return {
+        'installed_teams': len(tokens),
+        'teams': team_list,
+        'service': 'timezone-bot-main'
+    }
 
 if __name__ == "__main__":
     print("Starting Timezone Bot...")
@@ -474,13 +586,13 @@ if __name__ == "__main__":
     # Start OAuth server first
     start_oauth_server()
     
-    print("Connecting to Slack...")
+    print("Starting Web API server...")
     
     init_user_prefs()
     
     try:
-        handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-        handler.start()
+        # Run the Flask app for handling Slack events
+        flask_app.run(host='0.0.0.0', port=3000, debug=True)
     except KeyboardInterrupt:
         print("\nBot stopped")
     except Exception as e:

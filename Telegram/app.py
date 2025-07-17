@@ -2,6 +2,7 @@ import os
 import re
 import json
 import pytz
+import subprocess
 from datetime import datetime
 import telebot
 from dotenv import load_dotenv
@@ -126,6 +127,18 @@ def set_user_timezone(user_id, timezone_input):
 def get_user_timezone(user_id):
     data = read_user_prefs()
     return data.get('users', {}).get(str(user_id), {}).get('timezone')
+
+def is_user_authenticated(user_id):
+    """Check if user is authenticated through web interface"""
+    users_file = 'telegram_users.json'
+    if os.path.exists(users_file):
+        try:
+            with open(users_file, 'r') as f:
+                users = json.load(f)
+                return str(user_id) in users and users[str(user_id)].get('authenticated', False)
+        except json.JSONDecodeError:
+            return False
+    return False
 
 # Time parsing and conversion
 def extract_times(content):
@@ -255,12 +268,17 @@ bot = telebot.TeleBot(os.environ.get('TELEGRAM_BOT_TOKEN'))
 def send_welcome(message):
     user_id = message.from_user.id
     user_timezone = get_user_timezone(user_id)
+    is_authenticated = is_user_authenticated(user_id)
+    
+    auth_status = "✅ Authenticated" if is_authenticated else "❌ Not authenticated"
+    auth_info = "" if is_authenticated else "\n\n**🔗 Link your account:** Visit https://telegrambot.leonardocerv.hackclub.app to authenticate and enable full features."
     
     welcome_text = f"""**Welcome to Timezone Bot!**
 
 I automatically convert times between timezones.
 
 **Your timezone:** `{user_timezone or 'Not set'}`
+**Authentication:** {auth_status}{auth_info}
 
 **Commands:**
 /timezone EST - Set your timezone
@@ -446,9 +464,26 @@ def handle_message(message):
         
         bot.reply_to(message, response.strip(), parse_mode="Markdown")
 
+def start_web_server():
+    """Start the web server in a separate process"""
+    try:
+        print("Starting web server...")
+        # Run the web_server.py as a subprocess
+        subprocess.Popen(
+            ["python", "web_server.py"],
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        print("Web server started")
+        print("Install URL: https://telegrambot.leonardocerv.hackclub.app")
+    except Exception as e:
+        print(f"Failed to start web server: {e}")
+
 if __name__ == '__main__':
     print("Starting Timezone Bot...")
     print("Commands: /timezone EST, /convert '3:00PM EST', /mytimezone, /help")
+    
+    # Start web server first
+    start_web_server()
     
     init_user_prefs()
     bot.infinity_polling()

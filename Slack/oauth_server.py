@@ -278,7 +278,7 @@ INSTALL_TEMPLATE = """
         
         <p>ready to never miss a meeting due to timezone confusion again?</p>
         
-        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=chat:write,commands&user_scope=&redirect_uri={{ redirect_uri }}" class="install-button">
+        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=app_mentions:read,chat:write,commands&user_scope=&redirect_uri={{ redirect_uri }}" class="install-button">
             add to slack →
         </a>
     </div>
@@ -290,25 +290,34 @@ def save_team_token(team_id, access_token, bot_user_id):
     """Save the team's access token to a JSON file"""
     tokens_file = 'team_tokens.json'
     
-    # Load existing tokens
-    tokens = {}
-    if os.path.exists(tokens_file):
-        try:
-            with open(tokens_file, 'r') as f:
-                tokens = json.load(f)
-        except json.JSONDecodeError:
-            tokens = {}
-    
-    # Save new token
-    tokens[team_id] = {
-        'access_token': access_token,
-        'bot_user_id': bot_user_id,
-        'installed_at': json.dumps(os.times(), default=str)
-    }
-    
-    # Write back to file
-    with open(tokens_file, 'w') as f:
-        json.dump(tokens, f, indent=2)
+    try:
+        # Load existing tokens
+        tokens = {}
+        if os.path.exists(tokens_file):
+            try:
+                with open(tokens_file, 'r') as f:
+                    tokens = json.load(f)
+            except json.JSONDecodeError:
+                print(f"Warning: Could not parse {tokens_file}, starting with empty tokens")
+                tokens = {}
+        
+        # Save new token
+        tokens[team_id] = {
+            'access_token': access_token,
+            'bot_user_id': bot_user_id,
+            'installed_at': os.times()
+        }
+        
+        # Write back to file
+        with open(tokens_file, 'w') as f:
+            json.dump(tokens, f, indent=2)
+            
+        print(f"Successfully saved token for team {team_id}")
+        return True
+        
+    except Exception as e:
+        print(f"Error saving team token: {e}")
+        return False
 
 @app.route('/install')
 def install():
@@ -354,12 +363,16 @@ def oauth_callback():
         access_token = token_data.get('access_token')
         bot_user_id = token_data.get('bot_user_id')
         
+        print(f"OAuth response: team_id={team_id}, bot_user_id={bot_user_id}, has_token={bool(access_token)}")
+        
         if not all([team_id, access_token, bot_user_id]):
-            print("Missing required OAuth data")
+            print(f"Missing required OAuth data: team_id={team_id}, access_token={bool(access_token)}, bot_user_id={bot_user_id}")
             return redirect('/error')
         
         # Save the team's token
-        save_team_token(team_id, access_token, bot_user_id)
+        if not save_team_token(team_id, access_token, bot_user_id):
+            print(f"Failed to save token for team {team_id}")
+            return redirect('/error')
         
         print(f"Successfully installed for team {team_id}")
         
@@ -384,6 +397,33 @@ def error():
 def health():
     """Health check endpoint"""
     return {'status': 'ok', 'service': 'timezone-bot-oauth'}
+
+@app.route('/status')
+def status():
+    """Show installation status"""
+    tokens_file = 'team_tokens.json'
+    
+    if not os.path.exists(tokens_file):
+        return {'installed_teams': 0, 'teams': []}
+    
+    try:
+        with open(tokens_file, 'r') as f:
+            tokens = json.load(f)
+        
+        team_list = []
+        for team_id, data in tokens.items():
+            team_list.append({
+                'team_id': team_id,
+                'bot_user_id': data.get('bot_user_id'),
+                'has_token': bool(data.get('access_token'))
+            })
+        
+        return {
+            'installed_teams': len(tokens),
+            'teams': team_list
+        }
+    except Exception as e:
+        return {'error': str(e)}
 
 if __name__ == '__main__':
     # Check required environment variables
