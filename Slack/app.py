@@ -1140,159 +1140,67 @@ def install():
 def oauth_callback():
     """Handle the OAuth callback from Slack"""
     try:
-        print(f"=== OAuth callback started ===")
-        print(f"Request args: {dict(request.args)}")
-        print(f"Request URL: {request.url}")
-        
         # Get the authorization code from Slack
         code = request.args.get('code')
         error = request.args.get('error')
         state = request.args.get('state')
         
-        print(f"OAuth parameters: code={code[:10] if code else 'None'}..., error={error}, state={state}")
-        
         # Handle OAuth errors
         if error:
-            print(f"OAuth error: {error}")
-            error_description = request.args.get('error_description', 'Unknown error')
-            print(f"OAuth error description: {error_description}")
             return redirect('/error')
         
         if not code:
-            print("No authorization code received")
             return redirect('/error')
         
-        # Log the OAuth callback for debugging
-        print(f"OAuth callback received: code={code[:10]}..., state={state}")
-        
-        # Check environment variables
-        print(f"Environment check:")
-        print(f"  SLACK_CLIENT_ID: {SLACK_CLIENT_ID[:10] if SLACK_CLIENT_ID else 'None'}...")
-        print(f"  SLACK_CLIENT_SECRET: {SLACK_CLIENT_SECRET[:10] if SLACK_CLIENT_SECRET else 'None'}...")
-        print(f"  SLACK_REDIRECT_URI: {SLACK_REDIRECT_URI}")
-        
-        # Validate environment variables
-        if not SLACK_CLIENT_ID:
-            print("ERROR: SLACK_CLIENT_ID environment variable is missing")
+        # Check the state parameter if you sent one along with your initial user redirect
+        # If it doesn't match what you sent, consider the authorization a forgery
+        if state != 'install':
             return redirect('/error')
         
-        if not SLACK_CLIENT_SECRET:
-            print("ERROR: SLACK_CLIENT_SECRET environment variable is missing")
-            return redirect('/error')
-        
-        if not SLACK_REDIRECT_URI:
-            print("ERROR: SLACK_REDIRECT_URI environment variable is missing")
-            return redirect('/error')
-        
-        # Exchange the code for an access token using oauth.v2.access
-        print(f"Exchanging code for access token...")
-        
-        # Prepare request data
-        request_data = {
+        # Exchange the code for an access token
+        token_response = requests.post('https://slack.com/api/oauth.v2.access', data={
             'client_id': SLACK_CLIENT_ID,
             'client_secret': SLACK_CLIENT_SECRET,
             'code': code,
             'redirect_uri': SLACK_REDIRECT_URI
-        }
+        })
         
-        print(f"Request data: {dict(request_data)}")  # Log request (safe since no secrets shown)
-        
-        try:
-            token_response = requests.post('https://slack.com/api/oauth.v2.access', 
-                data=request_data,
-                headers={
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                timeout=30  # Add timeout
-            )
-            
-            print(f"Token response status: {token_response.status_code}")
-            print(f"Token response headers: {dict(token_response.headers)}")
-            
-            if token_response.status_code != 200:
-                print(f"ERROR: HTTP error during token exchange: {token_response.status_code}")
-                print(f"Response content: {token_response.text}")
-                return redirect('/error')
-        except requests.exceptions.Timeout:
-            print("ERROR: Timeout during token exchange")
-            return redirect('/error')
-        except requests.exceptions.RequestException as e:
-            print(f"ERROR: Request exception during token exchange: {e}")
+        if token_response.status_code != 200:
             return redirect('/error')
         
-        try:
-            token_data = token_response.json()
-            print(f"Token response data: {json.dumps(token_data, indent=2)}")
-        except json.JSONDecodeError as e:
-            print(f"ERROR: JSON decode error: {e}")
-            print(f"Raw response: {token_response.text}")
-            return redirect('/error')
+        token_data = token_response.json()
         
         # Check if the OAuth response is successful
         if not token_data.get('ok'):
-            error_msg = token_data.get('error', 'Unknown error')
-            print(f"ERROR: Token exchange failed: {error_msg}")
-            print(f"Full response: {json.dumps(token_data, indent=2)}")
             return redirect('/error')
         
-        # Extract important information according to OAuth v2 spec
+        # Extract team information
         team_info = token_data.get('team', {})
         team_id = team_info.get('id')
         team_name = team_info.get('name', 'Unknown Team')
         
-        # For OAuth v2, the access_token is the bot token
+        # Get bot token and user ID
         bot_token = token_data.get('access_token')
         bot_user_id = token_data.get('bot_user_id')
-        app_id = token_data.get('app_id')
-        scope = token_data.get('scope', '')
         
-        print(f"OAuth success:")
-        print(f"  Team: {team_name} ({team_id})")
-        print(f"  Bot User ID: {bot_user_id}")
-        print(f"  App ID: {app_id}")
-        print(f"  Scopes: {scope}")
-        print(f"  Token type: {type(bot_token)}, starts with: {bot_token[:10] if bot_token else 'None'}")
-        
-        # Validate we have all required data
+        # Validate we have required data
         if not all([team_id, bot_token, bot_user_id]):
-            print(f"ERROR: Missing required OAuth data:")
-            print(f"  team_id: {team_id}")
-            print(f"  bot_token: {bool(bot_token)}")
-            print(f"  bot_user_id: {bot_user_id}")
             return redirect('/error')
         
-        # Validate token format (should be xoxb- for bot tokens or xoxe- for enterprise)
-        if not bot_token.startswith(('xoxb-', 'xoxe-')):
-            print(f"ERROR: Unexpected token format: {bot_token[:10]}...")
-            print(f"Full token data: {json.dumps(token_data, indent=2)}")
-            return redirect('/error')
-        
-        # Save the team's token with additional metadata
+        # Save the team's token
         additional_data = {
             'team_name': team_name,
-            'app_id': app_id,
-            'scope': scope
+            'app_id': token_data.get('app_id'),
+            'scope': token_data.get('scope', '')
         }
         
         if not save_team_token(team_id, bot_token, bot_user_id, additional_data):
-            print(f"ERROR: Failed to save token for team {team_id}")
             return redirect('/error')
         
-        print(f"Successfully installed for team {team_name} ({team_id})")
-        
-        # Redirect to success page
         return redirect('/thanks')
         
-    except requests.exceptions.RequestException as e:
-        print(f"Network error during OAuth: {e}")
-        return redirect('/error')
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error during OAuth: {e}")
-        return redirect('/error')
     except Exception as e:
-        print(f"Unexpected OAuth callback error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"OAuth callback error: {e}")
         return redirect('/error')
 
 @flask_app.route('/thanks')
@@ -1312,22 +1220,6 @@ def validate_environment():
     
     if missing_vars:
         print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
-        return False
-    
-    # Validate formats
-    client_id = os.environ.get('SLACK_CLIENT_ID')
-    if not client_id or not client_id.startswith('9'):
-        print("Error: SLACK_CLIENT_ID should start with '9'")
-        return False
-    
-    client_secret = os.environ.get('SLACK_CLIENT_SECRET')
-    if not client_secret or len(client_secret) < 32:
-        print("Error: SLACK_CLIENT_SECRET appears to be invalid")
-        return False
-    
-    signing_secret = os.environ.get('SLACK_SIGNING_SECRET')
-    if not signing_secret or len(signing_secret) < 32:
-        print("Error: SLACK_SIGNING_SECRET appears to be invalid")
         return False
     
     return True
