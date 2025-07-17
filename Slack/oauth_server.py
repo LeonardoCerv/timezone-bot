@@ -305,7 +305,7 @@ def save_team_token(team_id, access_token, bot_user_id):
         tokens[team_id] = {
             'access_token': access_token,
             'bot_user_id': bot_user_id,
-            'installed_at': os.times()
+            'installed_at': str(os.times())
         }
         
         # Write back to file
