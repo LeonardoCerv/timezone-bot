@@ -278,7 +278,7 @@ INSTALL_TEMPLATE = """
         
         <p>ready to never miss a meeting due to timezone confusion again?</p>
         
-        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=app_mentions:read,chat:write,commands&user_scope=&redirect_uri={{ redirect_uri }}" class="install-button">
+        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=app_mentions:read,channels:history,chat:write,commands&user_scope=&redirect_uri={{ redirect_uri }}" class="install-button">
             add to slack →
         </a>
     </div>
