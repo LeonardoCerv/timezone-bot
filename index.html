@@ -342,22 +342,20 @@
             <img src="Slack.png" alt="Slack Bot" class="platform-image">
             <h3>slack</h3>
                 <p>slash commands and message shortcuts for workplace integration</p>
-                    <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=channels:read,chat:write,app_mentions:read,channels:history,groups:history,im:history,commands&user_scope=" class="install-link slack" target="_blank">
-                    <i class="fab fa-slack"></i> add to slack
-            </a>
+                    <a href="https://slack.com/oauth/v2/authorize?client_id=9180592732466.9175325235619&scope=app_mentions:read,channels:history,channels:read,chat:write,commands,groups:history,im:history&user_scope=&redirect_uri=https://slackbot.leonardocerv.hackclub.app/oauth"><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
             </div>
 
             <div class="platform-card">
             <img src="Telegram.png" alt="Telegram Bot" class="platform-image">
                 <h3>telegram</h3>
                     <p>direct chat or group integration for seamless time conversion</p>
-                <a href="https://t.me/TimeZone123Bot" class="install-link telegram" target="_blank">
-                <i class="fab fa-telegram"></i> start bot
-            </a>
+                <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="TimeZone123Bot" data-size="large"
+                data-userpic="false" 
+                data-radius="10" 
+                data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
             </div>
             </div>
             </section>
-
             <section class="section">
                 <h2>features</h2>
                 <ul class="features-list">
@@ -439,5 +437,11 @@
             <p>timezone bot – Leonardo Cervantes</p>
         </footer>
     </div>
+
+    <script type="text/javascript">
+        function onTelegramAuth(user) {
+            alert('Logged in as ' + user.first_name + ' ' + user.last_name + ' (' + user.id + (user.username ? ', @' + user.username : '') + ')');
+        }
+    </script>
 </body>
 </html>

@@ -324,11 +324,11 @@ def save_team_token(team_id, access_token, bot_user_id, team_data=None):
         with open(tokens_file, 'w') as f:
             json.dump(tokens, f, indent=2)
             
-        print(f"✅ Successfully saved token for team {team_id}")
+        print(f"Successfully saved token for team {team_id}")
         return True
         
     except Exception as e:
-        print(f"❌ Error saving team token: {e}")
+        print(f"ERROR: Error saving team token: {e}")
         return False
 
 # Slack app setup - use proper authorization flow with xoxe token support
@@ -342,7 +342,7 @@ def authorize(enterprise_id, team_id, user_id):
     # Reload tokens from file each time to ensure we have the latest
     tokens = load_team_tokens()
     if not tokens:
-        print("❌ No tokens loaded at all")
+        print("ERROR: No tokens loaded at all")
         return None
     
     # Get token for team
@@ -350,7 +350,7 @@ def authorize(enterprise_id, team_id, user_id):
     token = team_data.get('access_token')
     
     if not token:
-        print(f"❌ No token found for team {team_id}")
+        print(f"ERROR: No token found for team {team_id}")
         print(f"Available teams: {list(tokens.keys())}")
         # Try to find similar team IDs in case of mismatch
         for tid in tokens.keys():
@@ -361,17 +361,17 @@ def authorize(enterprise_id, team_id, user_id):
     # Get bot user ID from saved data
     bot_user_id = team_data.get('bot_user_id')
     
-    print(f"✅ Found token for team {team_id}")
+    print(f"Found token for team {team_id}")
     print(f"Bot user ID: {bot_user_id}")
     print(f"Token type: {type(token)}, starts with: {token[:10] if token else 'None'}")
     
     # Validate token format
     if not token or not isinstance(token, str):
-        print(f"❌ Invalid token format for team {team_id}")
+        print(f"ERROR: Invalid token format for team {team_id}")
         return None
     
     if not token.startswith(('xoxb-', 'xoxe-')):
-        print(f"❌ Token doesn't start with expected prefix for team {team_id}")
+        print(f"ERROR: Token doesn't start with expected prefix for team {team_id}")
         return None
     
     # Return AuthorizeResult - handle both xoxb and xoxe tokens
@@ -387,10 +387,10 @@ def authorize(enterprise_id, team_id, user_id):
             user_token=None,
             is_enterprise_install=False
         )
-        print(f"✅ Successfully created AuthorizeResult for team {team_id}")
+        print(f"Successfully created AuthorizeResult for team {team_id}")
         return result
     except Exception as e:
-        print(f"❌ Error creating AuthorizeResult for team {team_id}: {e}")
+        print(f"ERROR: Error creating AuthorizeResult for team {team_id}: {e}")
         import traceback
         traceback.print_exc()
         
@@ -403,10 +403,10 @@ def authorize(enterprise_id, team_id, user_id):
                 bot_token=token,
                 bot_user_id=bot_user_id
             )
-            print(f"✅ Successfully created AuthorizeResult (fallback) for team {team_id}")
+            print(f"Successfully created AuthorizeResult (fallback) for team {team_id}")
             return result
         except Exception as fallback_e:
-            print(f"❌ Fallback also failed for team {team_id}: {fallback_e}")
+            print(f"ERROR: Fallback also failed for team {team_id}: {fallback_e}")
             return None
 
 app = App(
@@ -1140,10 +1140,16 @@ def install():
 def oauth_callback():
     """Handle the OAuth callback from Slack"""
     try:
+        print(f"=== OAuth callback started ===")
+        print(f"Request args: {dict(request.args)}")
+        print(f"Request URL: {request.url}")
+        
         # Get the authorization code from Slack
         code = request.args.get('code')
         error = request.args.get('error')
         state = request.args.get('state')
+        
+        print(f"OAuth parameters: code={code[:10] if code else 'None'}..., error={error}, state={state}")
         
         # Handle OAuth errors
         if error:
@@ -1159,7 +1165,27 @@ def oauth_callback():
         # Log the OAuth callback for debugging
         print(f"OAuth callback received: code={code[:10]}..., state={state}")
         
+        # Check environment variables
+        print(f"Environment check:")
+        print(f"  SLACK_CLIENT_ID: {SLACK_CLIENT_ID[:10] if SLACK_CLIENT_ID else 'None'}...")
+        print(f"  SLACK_CLIENT_SECRET: {SLACK_CLIENT_SECRET[:10] if SLACK_CLIENT_SECRET else 'None'}...")
+        print(f"  SLACK_REDIRECT_URI: {SLACK_REDIRECT_URI}")
+        
+        # Validate environment variables
+        if not SLACK_CLIENT_ID:
+            print("ERROR: SLACK_CLIENT_ID environment variable is missing")
+            return redirect('/error')
+        
+        if not SLACK_CLIENT_SECRET:
+            print("ERROR: SLACK_CLIENT_SECRET environment variable is missing")
+            return redirect('/error')
+        
+        if not SLACK_REDIRECT_URI:
+            print("ERROR: SLACK_REDIRECT_URI environment variable is missing")
+            return redirect('/error')
+        
         # Exchange the code for an access token using oauth.v2.access
+        print(f"Exchanging code for access token...")
         token_response = requests.post('https://slack.com/api/oauth.v2.access', data={
             'client_id': SLACK_CLIENT_ID,
             'client_secret': SLACK_CLIENT_SECRET,
@@ -1169,16 +1195,25 @@ def oauth_callback():
             'Content-Type': 'application/x-www-form-urlencoded'
         })
         
+        print(f"Token response status: {token_response.status_code}")
+        
         if token_response.status_code != 200:
-            print(f"HTTP error during token exchange: {token_response.status_code}")
+            print(f"ERROR: HTTP error during token exchange: {token_response.status_code}")
+            print(f"Response content: {token_response.text}")
             return redirect('/error')
         
-        token_data = token_response.json()
+        try:
+            token_data = token_response.json()
+            print(f"Token response data: {json.dumps(token_data, indent=2)}")
+        except json.JSONDecodeError as e:
+            print(f"ERROR: JSON decode error: {e}")
+            print(f"Raw response: {token_response.text}")
+            return redirect('/error')
         
         # Check if the OAuth response is successful
         if not token_data.get('ok'):
             error_msg = token_data.get('error', 'Unknown error')
-            print(f"Token exchange failed: {error_msg}")
+            print(f"ERROR: Token exchange failed: {error_msg}")
             print(f"Full response: {json.dumps(token_data, indent=2)}")
             return redirect('/error')
         
@@ -1202,7 +1237,7 @@ def oauth_callback():
         
         # Validate we have all required data
         if not all([team_id, bot_token, bot_user_id]):
-            print(f"❌ Missing required OAuth data:")
+            print(f"ERROR: Missing required OAuth data:")
             print(f"  team_id: {team_id}")
             print(f"  bot_token: {bool(bot_token)}")
             print(f"  bot_user_id: {bot_user_id}")
@@ -1210,7 +1245,7 @@ def oauth_callback():
         
         # Validate token format (should be xoxb- for bot tokens)
         if not bot_token.startswith('xoxb-'):
-            print(f"❌ Unexpected token format: {bot_token[:10]}...")
+            print(f"ERROR: Unexpected token format: {bot_token[:10]}...")
             return redirect('/error')
         
         # Save the team's token with additional metadata
@@ -1221,10 +1256,10 @@ def oauth_callback():
         }
         
         if not save_team_token(team_id, bot_token, bot_user_id, additional_data):
-            print(f"❌ Failed to save token for team {team_id}")
+            print(f"ERROR: Failed to save token for team {team_id}")
             return redirect('/error')
         
-        print(f"✅ Successfully installed for team {team_name} ({team_id})")
+        print(f"Successfully installed for team {team_name} ({team_id})")
         
         # Redirect to success page
         return redirect('/thanks')
@@ -1263,6 +1298,7 @@ if __name__ == "__main__":
         exit(1)
     
     print("Starting integrated Slack bot server...")
+    print("Local URL: http://localhost:8944")
     print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
     print("OAuth Redirect URI: https://slackbot.leonardocerv.hackclub.app/oauth")
     print("Events endpoint: https://slackbot.leonardocerv.hackclub.app/")
