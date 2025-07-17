@@ -7,6 +7,8 @@ import subprocess
 from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
+from slack_bolt.oauth import OAuthFlow
+from slack_bolt.oauth.oauth_settings import OAuthSettings
 from flask import Flask, request
 from dotenv import load_dotenv
 
@@ -273,33 +275,51 @@ def get_team_token(team_id):
     tokens = load_team_tokens()
     return tokens.get(team_id, {}).get('access_token')
 
-# Slack app setup - use a token lookup function for multi-workspace support
-def token_lookup(team_id):
-    """Token lookup function for multi-workspace support"""
-    if not team_id:
-        print("Warning: No team_id provided for token lookup")
-        # Try to use a fallback token for development
-        fallback_token = os.environ.get("SLACK_BOT_TOKEN")
-        if fallback_token:
-            print("Using fallback SLACK_BOT_TOKEN")
-            return fallback_token
-        return None
+# Slack app setup - use proper authorization flow
+def authorize(enterprise_id, team_id, user_id):
+    """Authorize function that returns AuthorizeResult"""
+    from slack_bolt.authorization import AuthorizeResult
     
+    print(f"Authorizing team {team_id}")
+    
+    # Get token for team
     token = get_team_token(team_id)
     if not token:
-        print(f"Warning: No token found for team {team_id}")
-        # Try to use a fallback token for development
+        print(f"No token found for team {team_id}")
+        # Try fallback token for development
         fallback_token = os.environ.get("SLACK_BOT_TOKEN")
         if fallback_token:
-            print(f"Using fallback SLACK_BOT_TOKEN for team {team_id}")
-            return fallback_token
+            print(f"Using fallback token for team {team_id}")
+            return AuthorizeResult(
+                enterprise_id=enterprise_id,
+                team_id=team_id,
+                user_id=user_id,
+                bot_token=fallback_token,
+                bot_id=None,
+                bot_user_id=None,
+                user_token=None
+            )
         return None
     
-    print(f"Found token for team {team_id}")
-    return token
+    # Get bot user ID from saved data
+    tokens = load_team_tokens()
+    team_data = tokens.get(team_id, {})
+    bot_user_id = team_data.get('bot_user_id')
+    
+    print(f"Found token for team {team_id}, bot_user_id: {bot_user_id}")
+    
+    return AuthorizeResult(
+        enterprise_id=enterprise_id,
+        team_id=team_id,
+        user_id=user_id,
+        bot_token=token,
+        bot_id=None,
+        bot_user_id=bot_user_id,
+        user_token=None
+    )
 
 app = App(
-    token=token_lookup,
+    authorize=authorize,
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 
@@ -323,17 +343,7 @@ def handle_message(event, say, context):
         if event.get("subtype") == "bot_message" or event.get("bot_id"):
             return
         
-        # Check if we have a token for this team
         team_id = context.get("team_id")
-        if not team_id:
-            print("No team_id in context, skipping message")
-            return
-            
-        # Don't skip if using fallback token
-        if not get_team_token(team_id) and not os.environ.get("SLACK_BOT_TOKEN"):
-            print(f"No token found for team {team_id}, skipping message")
-            return
-        
         print(f"Processing message from team {team_id}")
         
         text = event.get("text", "")
@@ -362,51 +372,43 @@ def handle_message(event, say, context):
 
 @app.event("app_mention")
 def handle_app_mention(event, say, context):
-    # Check if we have a token for this team
-    team_id = context.get("team_id")
-    if not team_id or not get_team_token(team_id):
-        return
-    
-    text = event.get("text", "")
-    user_id = event.get("user")
-    
-    user_timezone = get_user_timezone(user_id)
-    if not user_timezone:
-        say(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
-        return
-    
-    conversions = convert_times(text, user_timezone)
-    if conversions:
-        response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
-        for conv in conversions:
-            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                       if conv['same_day'] 
-                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-            
-            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-            response += f"{format_for_slack(line)}\n"
+    try:
+        team_id = context.get("team_id")
+        print(f"Processing app mention from team {team_id}")
         
-        say(response.strip())
-    else:
-        say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
+        text = event.get("text", "")
+        user_id = event.get("user")
+        
+        user_timezone = get_user_timezone(user_id)
+        if not user_timezone:
+            say(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            return
+        
+        conversions = convert_times(text, user_timezone)
+        if conversions:
+            response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+            for conv in conversions:
+                template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                           if conv['same_day'] 
+                           else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+                
+                line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+                response += f"{format_for_slack(line)}\n"
+            
+            say(response.strip())
+        else:
+            say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
+    except Exception as e:
+        print(f"Error handling app mention: {e}")
+        import traceback
+        traceback.print_exc()
 
 @app.command("/timezone")
 def set_timezone_command(ack, respond, command, context):
     ack()
     
     try:
-        # Check if we have a token for this team
         team_id = context.get("team_id")
-        if not team_id:
-            respond("Error: No team information available.")
-            return
-            
-        # Don't reject if using fallback token
-        if not get_team_token(team_id) and not os.environ.get("SLACK_BOT_TOKEN"):
-            print(f"No token found for team {team_id}, rejecting /timezone command")
-            respond("Bot not properly installed for this workspace.")
-            return
-        
         print(f"Processing /timezone command from team {team_id}")
     
         timezone_input = command['text'].strip()
@@ -447,107 +449,109 @@ def set_timezone_command(ack, respond, command, context):
 def convert_time_command(ack, respond, command, context):
     ack()
     
-    # Check if we have a token for this team
-    team_id = context.get("team_id")
-    if not team_id or not get_team_token(team_id):
-        respond("Bot not properly installed for this workspace.")
-        return
+    try:
+        team_id = context.get("team_id")
+        print(f"Processing /convert command from team {team_id}")
     
-    text = command['text'].strip()
-    user_id = command['user_id']
-    
-    if not text:
-        respond(format_for_slack(
-            response_messages.get('commands', {}).get('convert_usage', "Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)")
-        ))
-        return
-    
-    user_timezone = get_user_timezone(user_id)
-    if not user_timezone:
-        respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
-        return
-    
-    conversions = convert_times(text, user_timezone)
-    
-    # If no timezone specified, try assuming UTC
-    if not conversions:
-        found_times = extract_times(text)
-        for time_str in found_times:
-            parsed = parse_time(time_str, 'UTC')
-            if parsed:
-                target_tz = pytz.timezone(user_timezone)
-                converted = parsed['datetime'].astimezone(target_tz)
-                same_day = parsed['datetime'].date() == converted.date()
-                
-                # Format consistently with proper timezone abbreviations
-                original_formatted = f"{time_str} UTC"
-                converted_formatted = f"{converted.strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(user_timezone)}"
-                
-                conversions.append({
-                    'original': original_formatted,
-                    'converted': converted_formatted,
-                    'date': converted.strftime('%A, %B %d'),
-                    'same_day': same_day
-                })
-    
-    if not conversions:
-        respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
-        return
-    
-    response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
-    for conv in conversions:
-        template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                   if conv['same_day'] 
-                   else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+        text = command['text'].strip()
+        user_id = command['user_id']
         
-        line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-        response += f"{format_for_slack(line)}\n"
+        if not text:
+            respond(format_for_slack(
+                response_messages.get('commands', {}).get('convert_usage', "Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)")
+            ))
+            return
+        
+        user_timezone = get_user_timezone(user_id)
+        if not user_timezone:
+            respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            return
+        
+        conversions = convert_times(text, user_timezone)
+        
+        # If no timezone specified, try assuming UTC
+        if not conversions:
+            found_times = extract_times(text)
+            for time_str in found_times:
+                parsed = parse_time(time_str, 'UTC')
+                if parsed:
+                    target_tz = pytz.timezone(user_timezone)
+                    converted = parsed['datetime'].astimezone(target_tz)
+                    same_day = parsed['datetime'].date() == converted.date()
+                    
+                    # Format consistently with proper timezone abbreviations
+                    original_formatted = f"{time_str} UTC"
+                    converted_formatted = f"{converted.strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(user_timezone)}"
+                    
+                    conversions.append({
+                        'original': original_formatted,
+                        'converted': converted_formatted,
+                        'date': converted.strftime('%A, %B %d'),
+                        'same_day': same_day
+                    })
+        
+        if not conversions:
+            respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
+            return
+        
+        response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+        for conv in conversions:
+            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
+                       if conv['same_day'] 
+                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
+            
+            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
+            response += f"{format_for_slack(line)}\n"
+        
+        respond(response.strip())
     
-    respond(response.strip())
+    except Exception as e:
+        print(f"Error in /convert command: {e}")
+        respond("An error occurred while processing your request.")
 
 @app.command("/mytimezone")
 def show_timezone_command(ack, respond, command, context):
     ack()
     
-    # Check if we have a token for this team
-    team_id = context.get("team_id")
-    if not team_id or not get_team_token(team_id):
-        respond("Bot not properly installed for this workspace.")
-        return
-    
-    user_id = command['user_id']
-    user_timezone = get_user_timezone(user_id)
-    
-    if not user_timezone:
-        respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
-        return
-    
     try:
-        tz = pytz.timezone(user_timezone)
-        current_time = datetime.now(tz)
-        formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
-        date_str = current_time.strftime('%A, %B %d, %Y')
+        team_id = context.get("team_id")
+        print(f"Processing /mytimezone command from team {team_id}")
         
-        respond(format_for_slack(
-            (response_messages.get('success', {}).get('mytimezone_display', "**Your timezone:** `{timezone}`\n**Current time:** {time}\n**Date:** {date}"))
-            .replace('{timezone}', user_timezone)
-            .replace('{time}', formatted_time)
-            .replace('{date}', date_str)
-        ))
-    except:
-        respond(format_for_slack((response_messages.get('success', {}).get('mytimezone_simple', "**Your timezone:** `{timezone}`")).replace('{timezone}', user_timezone)))
+        user_id = command['user_id']
+        user_timezone = get_user_timezone(user_id)
+        
+        if not user_timezone:
+            respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            return
+        
+        try:
+            tz = pytz.timezone(user_timezone)
+            current_time = datetime.now(tz)
+            formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
+            date_str = current_time.strftime('%A, %B %d, %Y')
+            
+            respond(format_for_slack(
+                (response_messages.get('success', {}).get('mytimezone_display', "**Your timezone:** `{timezone}`\n**Current time:** {time}\n**Date:** {date}"))
+                .replace('{timezone}', user_timezone)
+                .replace('{time}', formatted_time)
+                .replace('{date}', date_str)
+            ))
+        except:
+            respond(format_for_slack((response_messages.get('success', {}).get('mytimezone_simple', "**Your timezone:** `{timezone}`")).replace('{timezone}', user_timezone)))
+    
+    except Exception as e:
+        print(f"Error in /mytimezone command: {e}")
+        respond("An error occurred while processing your request.")
 
 @app.command("/help")
 def help_command(ack, respond, command, context):
     ack()
     
-    # Check if we have a token for this team
-    team_id = context.get("team_id")
-    if not team_id or not get_team_token(team_id):
-        respond("Bot not properly installed for this workspace.")
-        return
+    try:
+        team_id = context.get("team_id")
+        print(f"Processing /help command from team {team_id}")
     
-    help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
+        help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
 /timezone <timezone> - Set your timezone
 /time <time> - Convert a time
 /mytimezone - Show your timezone
@@ -566,8 +570,12 @@ def help_command(ack, respond, command, context):
 
 **Auto-detection:**
 I detect times in messages and convert them automatically."""))
+        
+        respond(help_text)
     
-    respond(help_text)
+    except Exception as e:
+        print(f"Error in /help command: {e}")
+        respond("An error occurred while processing your request.")
 
 @app.error
 def global_error_handler(error, body, logger):
