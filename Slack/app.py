@@ -903,7 +903,7 @@ INSTALL_TEMPLATE = """
         
         <p>ready to never miss a meeting due to timezone confusion again?</p>
         
-        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=app_mentions:read,channels:history,chat:write,commands&redirect_uri={{ redirect_uri }}" class="install-button">
+        <a href="https://slack.com/oauth/v2/authorize?client_id={{ client_id }}&scope=app_mentions:read,channels:history,chat:write,commands&redirect_uri={{ redirect_uri }}&state=install" class="install-button">
             add to slack →
         </a>
     </div>
@@ -1186,20 +1186,38 @@ def oauth_callback():
         
         # Exchange the code for an access token using oauth.v2.access
         print(f"Exchanging code for access token...")
-        token_response = requests.post('https://slack.com/api/oauth.v2.access', data={
+        
+        # Prepare request data
+        request_data = {
             'client_id': SLACK_CLIENT_ID,
             'client_secret': SLACK_CLIENT_SECRET,
             'code': code,
             'redirect_uri': SLACK_REDIRECT_URI
-        }, headers={
-            'Content-Type': 'application/x-www-form-urlencoded'
-        })
+        }
         
-        print(f"Token response status: {token_response.status_code}")
+        print(f"Request data: {dict(request_data)}")  # Log request (safe since no secrets shown)
         
-        if token_response.status_code != 200:
-            print(f"ERROR: HTTP error during token exchange: {token_response.status_code}")
-            print(f"Response content: {token_response.text}")
+        try:
+            token_response = requests.post('https://slack.com/api/oauth.v2.access', 
+                data=request_data,
+                headers={
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                timeout=30  # Add timeout
+            )
+            
+            print(f"Token response status: {token_response.status_code}")
+            print(f"Token response headers: {dict(token_response.headers)}")
+            
+            if token_response.status_code != 200:
+                print(f"ERROR: HTTP error during token exchange: {token_response.status_code}")
+                print(f"Response content: {token_response.text}")
+                return redirect('/error')
+        except requests.exceptions.Timeout:
+            print("ERROR: Timeout during token exchange")
+            return redirect('/error')
+        except requests.exceptions.RequestException as e:
+            print(f"ERROR: Request exception during token exchange: {e}")
             return redirect('/error')
         
         try:
@@ -1243,9 +1261,10 @@ def oauth_callback():
             print(f"  bot_user_id: {bot_user_id}")
             return redirect('/error')
         
-        # Validate token format (should be xoxb- for bot tokens)
-        if not bot_token.startswith('xoxb-'):
+        # Validate token format (should be xoxb- for bot tokens or xoxe- for enterprise)
+        if not bot_token.startswith(('xoxb-', 'xoxe-')):
             print(f"ERROR: Unexpected token format: {bot_token[:10]}...")
+            print(f"Full token data: {json.dumps(token_data, indent=2)}")
             return redirect('/error')
         
         # Save the team's token with additional metadata
@@ -1286,15 +1305,38 @@ def error():
     """Show error page if installation fails"""
     return render_template_string(ERROR_TEMPLATE)
 
-if __name__ == "__main__":
-    print("Starting Timezone Bot...")
-    
-    # Check required environment variables
+def validate_environment():
+    """Validate required environment variables"""
     required_vars = ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     
     if missing_vars:
         print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+        return False
+    
+    # Validate formats
+    client_id = os.environ.get('SLACK_CLIENT_ID')
+    if not client_id or not client_id.startswith('9'):
+        print("Error: SLACK_CLIENT_ID should start with '9'")
+        return False
+    
+    client_secret = os.environ.get('SLACK_CLIENT_SECRET')
+    if not client_secret or len(client_secret) < 32:
+        print("Error: SLACK_CLIENT_SECRET appears to be invalid")
+        return False
+    
+    signing_secret = os.environ.get('SLACK_SIGNING_SECRET')
+    if not signing_secret or len(signing_secret) < 32:
+        print("Error: SLACK_SIGNING_SECRET appears to be invalid")
+        return False
+    
+    return True
+
+if __name__ == "__main__":
+    print("Starting Timezone Bot...")
+    
+    # Validate environment
+    if not validate_environment():
         exit(1)
     
     print("Starting integrated Slack bot server...")
