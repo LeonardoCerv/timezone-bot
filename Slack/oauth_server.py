@@ -11,7 +11,7 @@ app = Flask(__name__)
 # OAuth endpoints for Slack
 SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
 SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET")
-SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "http://localhost:8944/oauth")
+SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "https://slackbot.leonardocerv.hackclub.app/oauth")
 
 # Template for success page
 SUCCESS_TEMPLATE = """
@@ -301,11 +301,12 @@ def save_team_token(team_id, access_token, bot_user_id):
                 print(f"Warning: Could not parse {tokens_file}, starting with empty tokens")
                 tokens = {}
         
-        # Save new token
+        # Save new token - following Slack OAuth guide format
         tokens[team_id] = {
             'access_token': access_token,
             'bot_user_id': bot_user_id,
-            'installed_at': str(os.times())
+            'installed_at': str(os.times()),
+            'team_id': team_id
         }
         
         # Write back to file
@@ -335,6 +336,7 @@ def oauth_callback():
         # Get the authorization code from Slack
         code = request.args.get('code')
         error = request.args.get('error')
+        state = request.args.get('state')
         
         if error:
             print(f"OAuth error: {error}")
@@ -343,6 +345,9 @@ def oauth_callback():
         if not code:
             print("No authorization code received")
             return redirect('/error')
+        
+        # Log the OAuth callback for debugging
+        print(f"OAuth callback received: code={code[:10]}..., state={state}")
         
         # Exchange the code for an access token
         token_response = requests.post('https://slack.com/api/oauth.v2.access', data={
@@ -399,7 +404,7 @@ def error():
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    return {'status': 'ok', 'service': 'timezone-bot-oauth'}
+    return {'status': 'ok', 'service': 'timezone-bot-oauth', 'port': 8944}
 
 @app.route('/status')
 def status():

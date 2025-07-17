@@ -265,10 +265,15 @@ def load_team_tokens():
     if os.path.exists(tokens_file):
         try:
             with open(tokens_file, 'r') as f:
-                return json.load(f)
+                tokens = json.load(f)
+                print(f"Loaded {len(tokens)} team tokens")
+                return tokens
         except json.JSONDecodeError:
+            print("Error: team_tokens.json is corrupted")
             return {}
-    return {}
+    else:
+        print("Warning: team_tokens.json not found - no teams installed yet")
+        return {}
 
 def get_team_token(team_id):
     """Get access token for a specific team"""
@@ -582,15 +587,21 @@ def start_oauth_server():
     """Start the OAuth server in a separate process"""
     try:
         print("Starting OAuth server...")
-        # Run the oauth_server.py as a subprocess
-        subprocess.Popen(
-            ["python", "oauth_server.py"],
-            cwd=os.path.dirname(os.path.abspath(__file__))
+        import sys
+        # Use sys.executable to ensure we use the same Python interpreter
+        process = subprocess.Popen(
+            [sys.executable, "oauth_server.py"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         print("OAuth server started on http://localhost:8944")
-        print("Install URL: http://localhost:8944/install")
+        print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
+        print("OAuth Redirect URI: https://slackbot.leonardocerv.hackclub.app/oauth")
+        return process
     except Exception as e:
         print(f"Failed to start OAuth server: {e}")
+        return None
 
 # Flask app for handling Slack events
 flask_app = Flask(__name__)
@@ -604,12 +615,12 @@ def slack_events():
 @flask_app.route("/slack/install", methods=["GET"])
 def install():
     """Redirect to OAuth server install page"""
-    return f'<script>window.location.href="http://localhost:8944/install";</script>'
+    return f'<script>window.location.href="https://slackbot.leonardocerv.hackclub.app/install";</script>'
 
 @flask_app.route("/health")
 def health():
     """Health check endpoint"""
-    return {"status": "ok", "service": "timezone-bot"}
+    return {"status": "ok", "service": "timezone-bot-main", "port": 3000}
 
 @flask_app.route("/status")
 def status():
@@ -633,8 +644,16 @@ def status():
 if __name__ == "__main__":
     print("Starting Timezone Bot...")
     
+    # Check required environment variables
+    required_vars = ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+        exit(1)
+    
     # Start OAuth server first
-    start_oauth_server()
+    oauth_process = start_oauth_server()
     
     print("Starting Web API server...")
     
@@ -642,8 +661,12 @@ if __name__ == "__main__":
     
     try:
         # Run the Flask app for handling Slack events
-        flask_app.run(host='0.0.0.0', port=3000, debug=True)
+        flask_app.run(host='0.0.0.0', port=3000, debug=False)
     except KeyboardInterrupt:
         print("\nBot stopped")
+        if oauth_process:
+            oauth_process.terminate()
     except Exception as e:
         print(f"Error starting bot: {e}")
+        if oauth_process:
+            oauth_process.terminate()
