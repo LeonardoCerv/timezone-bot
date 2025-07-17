@@ -792,8 +792,7 @@ TEST_WEBSITE = """
         <div class="status">
             <h3>Service Status</h3>
             <ul>
-                <li>✅ Main service: Running on port 8945</li>
-                <li>✅ OAuth service: Running on port 8944</li>
+                <li>✅ Main service: Running on port 8944</li>
                 <li>✅ Event handler: Ready to receive Slack events</li>
                 <li>✅ Commands: /timezone, /convert, /mytimezone, /help</li>
             </ul>
@@ -1099,7 +1098,7 @@ def slack_events():
 @flask_app.route("/health")
 def health():
     """Health check endpoint"""
-    return {"status": "ok", "service": "timezone-bot-unified", "port": 8945, "oauth_enabled": True}
+    return {"status": "ok", "service": "timezone-bot-unified", "port": 8944, "oauth_enabled": True}
 
 @flask_app.route("/status")
 def status():
@@ -1272,7 +1271,7 @@ if __name__ == "__main__":
     
     try:
         # Run the Flask app for handling Slack events and OAuth
-        flask_app.run(host='0.0.0.0', port=8945, debug=False)
+        flask_app.run(host='0.0.0.0', port=8944, debug=False)
     except KeyboardInterrupt:
         print("\nBot stopped")
     except Exception as e:
