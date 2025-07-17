@@ -4,57 +4,32 @@ import json
 import pytz
 import threading
 import requests
-import hashlib
-import hmac
 import time
 from datetime import datetime
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_bolt.adapter.flask import SlackRequestHandler
-from slack_bolt.oauth import OAuthFlow
-from slack_bolt.oauth.oauth_settings import OAuthSettings
 from flask import Flask, request, redirect, render_template_string
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Socket mode configuration
-SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
-
-# OAuth configuration (for installation)
 SLACK_CLIENT_ID = os.environ.get("SLACK_CLIENT_ID")
 SLACK_CLIENT_SECRET = os.environ.get("SLACK_CLIENT_SECRET")
 SLACK_REDIRECT_URI = os.environ.get("SLACK_REDIRECT_URI", "https://slackbot.leonardocerv.hackclub.app/oauth")
 
-# File paths
 USER_PREFS_PATH = '../shared/user_preferences.json'
 SHARED_TIMEZONES_PATH = '../shared/timezones.json'
-RESPONSE_MESSAGES_PATH = '../shared/response_messages.json'
 
-# Load shared timezone config
 timezone_config = {'aliases': {}, 'popular': []}
-try:
-    if os.path.exists(SHARED_TIMEZONES_PATH):
+if os.path.exists(SHARED_TIMEZONES_PATH):
+    try:
         with open(SHARED_TIMEZONES_PATH, 'r') as f:
             timezone_config = json.load(f)
-except Exception as error:
-    print(f'Failed to load timezone config: {error}')
+    except:
+        pass
 
-# Load shared response messages
-response_messages = {}
-try:
-    if os.path.exists(RESPONSE_MESSAGES_PATH):
-        with open(RESPONSE_MESSAGES_PATH, 'r') as f:
-            response_messages = json.load(f)
-except Exception as error:
-    print(f'Failed to load response messages: {error}')
-
-# Format messages for Slack (convert **bold** to *bold*)
-def format_for_slack(message):
-    return message.replace('**', '*')
-
-# Database functions
 def init_user_prefs():
     if not os.path.exists(USER_PREFS_PATH):
         with open(USER_PREFS_PATH, 'w') as f:
@@ -67,36 +42,28 @@ def read_user_prefs():
         with open(USER_PREFS_PATH, 'r') as f:
             full_data = json.load(f)
             return {'users': full_data.get('slack', {})}
-    except Exception as error:
-        print(f'Error reading user preferences: {error}')
+    except:
         return {'users': {}}
 
 def write_user_prefs(data):
     try:
-        # Read existing data first
         full_data = {'discord': {}, 'slack': {}, 'telegram': {}}
         if os.path.exists(USER_PREFS_PATH):
             with open(USER_PREFS_PATH, 'r') as f:
                 full_data = json.load(f)
         
-        # Update only the slack section
         full_data['slack'] = data.get('users', {})
         
         with open(USER_PREFS_PATH, 'w') as f:
             json.dump(full_data, f, indent=2)
         return True
-    except Exception as error:
-        print(f'Error writing user preferences: {error}')
+    except:
         return False
 
-# Timezone utilities
-# Helper function to get display name for timezone
 def get_timezone_display_name(timezone_id):
-    # Check if we have a display name in the timezone config
     if timezone_config.get('display_names') and timezone_id in timezone_config['display_names']:
         return timezone_config['display_names'][timezone_id]
     
-    # Fallback to timezone name
     try:
         tz = pytz.timezone(timezone_id)
         now = datetime.now(tz)
@@ -108,19 +75,16 @@ def normalize_timezone(input_tz):
     if not input_tz:
         return None
     
-    # Check aliases first
     alias = timezone_config['aliases'].get(input_tz.upper())
     if alias:
         return alias
     
-    # Check if it's a valid pytz timezone
     try:
         pytz.timezone(input_tz)
         return input_tz
     except:
         pass
     
-    # Handle UTC offset formats (UTC-5, UTC+3:30)
     offset_match = re.match(r'^(UTC)?([+-]\d{1,2}):?(\d{2})?$', input_tz, re.IGNORECASE)
     if offset_match:
         sign = '+' if offset_match.group(2).startswith('+') else '-'
@@ -128,7 +92,6 @@ def normalize_timezone(input_tz):
         minutes = int(offset_match.group(3)) if offset_match.group(3) else 0
         
         if hours <= 14 and minutes <= 59:
-            # Etc/GMT offsets are inverted
             return f"Etc/GMT{'-' if sign == '+' else '+'}{hours}"
     
     return None
@@ -273,23 +236,14 @@ def convert_times(content, target_timezone):
 
 # Token management
 def load_team_tokens():
-    """Load team tokens from JSON file"""
     tokens_file = 'team_tokens.json'
     if os.path.exists(tokens_file):
         try:
             with open(tokens_file, 'r') as f:
-                tokens = json.load(f)
-                print(f"Loaded {len(tokens)} team tokens from {tokens_file}")
-                return tokens
-        except json.JSONDecodeError as e:
-            print(f"Error: team_tokens.json is corrupted: {e}")
+                return json.load(f)
+        except:
             return {}
-        except Exception as e:
-            print(f"Error loading team tokens: {e}")
-            return {}
-    else:
-        print("Warning: team_tokens.json not found - no teams installed yet")
-        return {}
+    return {}
 
 def get_team_token(team_id):
     """Get access token for a specific team"""
@@ -297,21 +251,17 @@ def get_team_token(team_id):
     return tokens.get(team_id, {}).get('access_token')
 
 def save_team_token(team_id, access_token, bot_user_id, team_data=None):
-    """Save the team's access token to a JSON file"""
     tokens_file = 'team_tokens.json'
     
     try:
-        # Load existing tokens
         tokens = {}
         if os.path.exists(tokens_file):
             try:
                 with open(tokens_file, 'r') as f:
                     tokens = json.load(f)
-            except json.JSONDecodeError:
-                print(f"Warning: Could not parse {tokens_file}, starting with empty tokens")
+            except:
                 tokens = {}
         
-        # Save new token - following Slack OAuth guide format
         token_data = {
             'access_token': access_token,
             'bot_user_id': bot_user_id,
@@ -319,37 +269,48 @@ def save_team_token(team_id, access_token, bot_user_id, team_data=None):
             'installed_at': datetime.now().isoformat()
         }
         
-        # Add additional metadata if provided
         if team_data:
             token_data.update(team_data)
         
         tokens[team_id] = token_data
         
-        # Write back to file
         with open(tokens_file, 'w') as f:
             json.dump(tokens, f, indent=2)
             
-        print(f"Successfully saved token for team {team_id}")
+        print(f"Saved token for team {team_id}")
         return True
         
     except Exception as e:
-        print(f"ERROR: Error saving team token: {e}")
+        print(f"Error saving team token: {e}")
         return False
 
-# Socket mode app setup with OAuth support
-if SLACK_BOT_TOKEN:
-    # Use socket mode with fixed bot token
-    app = App(
-        token=SLACK_BOT_TOKEN,
-        signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-        process_before_response=True
+# Socket mode app setup with multi-workspace support
+def authorize(enterprise_id, team_id, user_id):
+    """Authorize function that loads bot tokens from team_tokens.json"""
+    from slack_bolt.authorization import AuthorizeResult
+    
+    # Load team tokens from file
+    tokens = load_team_tokens()
+    team_data = tokens.get(team_id, {})
+    bot_token = team_data.get('access_token')
+    bot_user_id = team_data.get('bot_user_id')
+    
+    if not bot_token or not bot_user_id:
+        return None
+    
+    return AuthorizeResult(
+        enterprise_id=enterprise_id,
+        team_id=team_id,
+        user_id=user_id,
+        bot_token=bot_token,
+        bot_user_id=bot_user_id
     )
-else:
-    # Fallback to OAuth mode for development/testing
-    app = App(
-        signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
-        process_before_response=True
-    )
+
+app = App(
+    authorize=authorize,
+    signing_secret=os.environ.get("SLACK_SIGNING_SECRET"),
+    process_before_response=True
+)
 
 @app.event("app_installed")
 def handle_app_installed(event, say, context):
@@ -380,14 +341,12 @@ def handle_message(event, say):
         
         conversions = convert_times(text, user_timezone)
         if conversions:
-            response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+            response = f"*Times in your timezone ({user_timezone})*\n\n"
             for conv in conversions:
-                template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                           if conv['same_day'] 
-                           else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-                
-                line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-                response += f"{format_for_slack(line)}\n"
+                if conv['same_day']:
+                    response += f"*{conv['original']}* → *{conv['converted']}*\n"
+                else:
+                    response += f"*{conv['original']}* → *{conv['converted']}* ({conv['date']})\n"
             
             say(response.strip())
     except Exception as e:
@@ -401,23 +360,21 @@ def handle_app_mention(event, say):
         
         user_timezone = get_user_timezone(user_id)
         if not user_timezone:
-            say(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            say("No timezone set. Use `/timezone EST` to set one")
             return
         
         conversions = convert_times(text, user_timezone)
         if conversions:
-            response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+            response = f"*Times in your timezone ({user_timezone})*\n\n"
             for conv in conversions:
-                template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                           if conv['same_day'] 
-                           else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-                
-                line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-                response += f"{format_for_slack(line)}\n"
+                if conv['same_day']:
+                    response += f"*{conv['original']}* → *{conv['converted']}*\n"
+                else:
+                    response += f"*{conv['original']}* → *{conv['converted']}* ({conv['date']})\n"
             
             say(response.strip())
         else:
-            say(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
+            say("No times found. Use format: `/convert 3:00PM EST`")
     except Exception as e:
         print(f"Error handling app mention: {e}")
 
@@ -431,14 +388,11 @@ def set_timezone_command(ack, respond, command):
         
         if not timezone_input:
             current_tz = get_user_timezone(user_id)
-            respond(format_for_slack(
-                (response_messages.get('commands', {}).get('timezone_current', "Your timezone: `{timezone}`\n\nSet with: `/timezone EST` or `/timezone America/New_York`"))
-                .replace('{timezone}', current_tz or 'Not set')
-            ))
+            respond(f"Your timezone: `{current_tz or 'Not set'}`\n\nSet with: `/timezone EST` or `/timezone America/New_York`")
             return
         
         if not normalize_timezone(timezone_input):
-            respond(format_for_slack(response_messages.get('errors', {}).get('invalid_timezone', "*Invalid timezone. Use format: /convert 3:00PM EST*")))
+            respond("Invalid timezone. Try `/timezone EST` or `/timezone America/New_York`")
             return
         
         success = set_user_timezone(user_id, timezone_input)
@@ -448,13 +402,9 @@ def set_timezone_command(ack, respond, command):
             current_time = datetime.now(tz)
             formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
             
-            respond(format_for_slack(
-                (response_messages.get('success', {}).get('timezone_set', "Timezone set to `{timezone}`\nCurrent time: **{time}**"))
-                .replace('{timezone}', timezone_input)
-                .replace('{time}', formatted_time)
-            ))
+            respond(f"Timezone set to `{timezone_input}`\nCurrent time: *{formatted_time}*")
         else:
-            respond(format_for_slack(response_messages.get('errors', {}).get('failed_to_save', "Failed to save timezone")))
+            respond("Failed to save timezone")
     
     except Exception as e:
         print(f"Error in /timezone command: {e}")
@@ -469,19 +419,16 @@ def convert_time_command(ack, respond, command):
         user_id = command['user_id']
         
         if not text:
-            respond(format_for_slack(
-                response_messages.get('commands', {}).get('convert_usage', "Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)")
-            ))
+            respond("Provide a time to convert:\n• `/convert 3:00PM EST`\n• `/convert 14:30 PST`\n• `/convert 4 PM` (assumes UTC)")
             return
         
         user_timezone = get_user_timezone(user_id)
         if not user_timezone:
-            respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            respond("No timezone set. Use `/timezone EST` to set one")
             return
         
         conversions = convert_times(text, user_timezone)
         
-        # If no timezone specified, try assuming UTC
         if not conversions:
             found_times = extract_times(text)
             for time_str in found_times:
@@ -491,7 +438,6 @@ def convert_time_command(ack, respond, command):
                     converted = parsed['datetime'].astimezone(target_tz)
                     same_day = parsed['datetime'].date() == converted.date()
                     
-                    # Format consistently with proper timezone abbreviations
                     original_formatted = f"{time_str} UTC"
                     converted_formatted = f"{converted.strftime('%I:%M%p').lstrip('0')} {get_timezone_display_name(user_timezone)}"
                     
@@ -503,17 +449,15 @@ def convert_time_command(ack, respond, command):
                     })
         
         if not conversions:
-            respond(format_for_slack(response_messages.get('errors', {}).get('no_times_found', "*No times found. Use format: /convert 3:00PM EST*")))
+            respond("No times found. Use format: `/convert 3:00PM EST`")
             return
         
-        response = format_for_slack((response_messages.get('success', {}).get('conversion_header', "**Times in your timezone ({timezone})**\n\n")).replace('{timezone}', user_timezone))
+        response = f"*Times in your timezone ({user_timezone})*\n\n"
         for conv in conversions:
-            template = (response_messages.get('success', {}).get('conversion_line', "**{original}** → **{converted}**") 
-                       if conv['same_day'] 
-                       else response_messages.get('success', {}).get('conversion_line_with_date', "**{original}** → **{converted}** ({date})"))
-            
-            line = template.replace('{original}', conv['original']).replace('{converted}', conv['converted']).replace('{date}', conv.get('date', ''))
-            response += f"{format_for_slack(line)}\n"
+            if conv['same_day']:
+                response += f"*{conv['original']}* → *{conv['converted']}*\n"
+            else:
+                response += f"*{conv['original']}* → *{conv['converted']}* ({conv['date']})\n"
         
         respond(response.strip())
     
@@ -530,7 +474,7 @@ def show_timezone_command(ack, respond, command):
         user_timezone = get_user_timezone(user_id)
         
         if not user_timezone:
-            respond(format_for_slack(response_messages.get('errors', {}).get('no_timezone_set', "No timezone set. Use `/timezone EST` to set one")))
+            respond("No timezone set. Use `/timezone EST` to set one")
             return
         
         try:
@@ -539,14 +483,9 @@ def show_timezone_command(ack, respond, command):
             formatted_time = current_time.strftime('%I:%M %p %Z').lstrip('0')
             date_str = current_time.strftime('%A, %B %d, %Y')
             
-            respond(format_for_slack(
-                (response_messages.get('success', {}).get('mytimezone_display', "**Your timezone:** `{timezone}`\n**Current time:** {time}\n**Date:** {date}"))
-                .replace('{timezone}', user_timezone)
-                .replace('{time}', formatted_time)
-                .replace('{date}', date_str)
-            ))
+            respond(f"*Your timezone:* `{user_timezone}`\n*Current time:* {formatted_time}\n*Date:* {date_str}")
         except:
-            respond(format_for_slack((response_messages.get('success', {}).get('mytimezone_simple', "**Your timezone:** `{timezone}`")).replace('{timezone}', user_timezone)))
+            respond(f"*Your timezone:* `{user_timezone}`")
     
     except Exception as e:
         print(f"Error in /mytimezone command: {e}")
@@ -557,25 +496,25 @@ def help_command(ack, respond, command):
     ack()
     
     try:
-        help_text = format_for_slack(response_messages.get('help', {}).get('content', """**Commands:**
+        help_text = """*Commands:*
 /timezone <timezone> - Set your timezone
-/time <time> - Convert a time
+/convert <time> - Convert a time
 /mytimezone - Show your timezone
 /help - Show this help
 
-**Formats:**
+*Formats:*
 • 4 PM EST - 12-hour with timezone
 • 4:30 PM PST - 12-hour with minutes  
 • 16:30 GMT - 24-hour format
 • 14:00 UTC - 24-hour format
 
-**Timezones:**
+*Timezones:*
 • EST, PST, GMT, UTC, etc.
 • America/New_York, Europe/London
 • UTC-5, UTC+3
 
-**Auto-detection:**
-I detect times in messages and convert them automatically."""))
+*Auto-detection:*
+I detect times in messages and convert them automatically."""
         
         respond(help_text)
     
@@ -587,29 +526,7 @@ I detect times in messages and convert them automatically."""))
 def global_error_handler(error, body, logger):
     logger.exception(f"Error: {error}")
 
-# OAuth server functionality is now integrated into the main Flask app
 
-def verify_slack_signature(request_body, timestamp, signature, signing_secret):
-    """
-    Verify that the request was sent by Slack by checking the signature
-    Following the Slack documentation for request verification
-    """
-    # Check timestamp to prevent replay attacks
-    if abs(time.time() - float(timestamp)) > 60 * 5:  # 5 minutes
-        return False
-    
-    # Create the signature base string
-    sig_basestring = f"v0:{timestamp}:{request_body}"
-    
-    # Create the expected signature
-    expected_signature = 'v0=' + hmac.new(
-        signing_secret.encode('utf-8'),
-        sig_basestring.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    # Compare signatures
-    return hmac.compare_digest(expected_signature, signature)
 
 # Flask app for handling Slack events
 flask_app = Flask(__name__)
@@ -1004,10 +921,13 @@ def slack_events():
 @flask_app.route("/status")
 def status():
     """Status endpoint"""
+    tokens = load_team_tokens()
     return {
         "status": "running",
-        "mode": "socket" if SLACK_BOT_TOKEN and SLACK_APP_TOKEN else "http",
-        "oauth_enabled": bool(SLACK_CLIENT_ID and SLACK_CLIENT_SECRET)
+        "mode": "socket" if SLACK_APP_TOKEN else "http",
+        "oauth_enabled": bool(SLACK_CLIENT_ID and SLACK_CLIENT_SECRET),
+        "installed_workspaces": len(tokens),
+        "workspaces": [{"team_id": tid, "team_name": data.get("team_name", "Unknown")} for tid, data in tokens.items()]
     }
 
 @flask_app.route("/health")
@@ -1015,32 +935,7 @@ def health():
     """Health check endpoint"""
     return {"status": "ok", "service": "timezone-bot-unified", "port": 8944, "oauth_enabled": True}
 
-@flask_app.route("/status")
-def status():
-    """Show bot status and installed teams"""
-    tokens = load_team_tokens()
-    
-    team_list = []
-    for team_id, data in tokens.items():
-        team_info = {
-            'team_id': team_id,
-            'team_name': data.get('team_name', 'Unknown'),
-            'bot_user_id': data.get('bot_user_id'),
-            'has_token': bool(data.get('access_token')),
-            'installed_at': data.get('installed_at'),
-            'scope': data.get('scope', ''),
-            'app_id': data.get('app_id')
-        }
-        team_list.append(team_info)
-    
-    return {
-        'installed_teams': len(tokens),
-        'teams': team_list,
-        'service': 'timezone-bot-unified',
-        'oauth_enabled': True,
-        'oauth_version': 'v2',
-        'scopes': 'app_mentions:read,channels:history,chat:write,commands'
-    }
+
 
 @flask_app.route('/install')
 def install():
@@ -1131,16 +1026,16 @@ def error():
 def validate_environment():
     """Validate required environment variables"""
     # For socket mode operation
-    bot_vars = ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'SLACK_SIGNING_SECRET']
+    socket_vars = ['SLACK_APP_TOKEN', 'SLACK_SIGNING_SECRET']
     # For OAuth installation
     oauth_vars = ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET', 'SLACK_SIGNING_SECRET']
     
-    missing_bot_vars = [var for var in bot_vars if not os.environ.get(var)]
+    missing_socket_vars = [var for var in socket_vars if not os.environ.get(var)]
     missing_oauth_vars = [var for var in oauth_vars if not os.environ.get(var)]
     
-    if missing_bot_vars and missing_oauth_vars:
+    if missing_socket_vars and missing_oauth_vars:
         print(f"Error: Missing environment variables for both modes:")
-        print(f"  Socket mode: {', '.join(missing_bot_vars)}")
+        print(f"  Socket mode: {', '.join(missing_socket_vars)}")
         print(f"  OAuth mode: {', '.join(missing_oauth_vars)}")
         return False
     
@@ -1155,30 +1050,37 @@ if __name__ == "__main__":
     
     init_user_prefs()
     
-    # Start socket mode handler in background if tokens are available
-    if SLACK_BOT_TOKEN and SLACK_APP_TOKEN:
+    if SLACK_APP_TOKEN:
         print("Socket Mode: Bot will connect directly to Slack via WebSocket")
-        import threading
-        def start_socket_mode():
-            try:
-                handler = SocketModeHandler(app, SLACK_APP_TOKEN)
-                handler.start()
-            except Exception as e:
-                print(f"Socket mode error: {e}")
+        print("Bot tokens will be loaded from team_tokens.json for each workspace")
+        print("Flask Server: Running on port 8944 for OAuth installation")
+        print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
+        print("Status URL: https://slackbot.leonardocerv.hackclub.app/status")
         
-        socket_thread = threading.Thread(target=start_socket_mode, daemon=True)
-        socket_thread.start()
+        # Run Flask server in background thread for OAuth only
+        import threading
+        def run_flask():
+            flask_app.run(host='0.0.0.0', port=8944, debug=False, use_reloader=False)
+        
+        flask_thread = threading.Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+        
+        # Run Socket Mode as main process
+        try:
+            handler = SocketModeHandler(app, SLACK_APP_TOKEN)
+            handler.start()
+        except KeyboardInterrupt:
+            print("\nBot stopped")
+        except Exception as e:
+            print(f"Socket mode error: {e}")
     else:
-        print("Socket Mode: Disabled (missing SLACK_BOT_TOKEN or SLACK_APP_TOKEN)")
-    
-    # Always start Flask server for OAuth installation
-    print("Flask Server: Running on port 8944 for OAuth installation")
-    print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
-    print("Status URL: https://slackbot.leonardocerv.hackclub.app/status")
-    
-    try:
-        flask_app.run(host='0.0.0.0', port=8944, debug=False)
-    except KeyboardInterrupt:
-        print("\nBot stopped")
-    except Exception as e:
-        print(f"Error starting Flask server: {e}")
+        print("Socket Mode: Disabled (missing SLACK_APP_TOKEN)")
+        print("Flask Server: Running on port 8944 for OAuth installation only")
+        print("Install URL: https://slackbot.leonardocerv.hackclub.app/install")
+        
+        try:
+            flask_app.run(host='0.0.0.0', port=8944, debug=False)
+        except KeyboardInterrupt:
+            print("\nBot stopped")
+        except Exception as e:
+            print(f"Error starting Flask server: {e}")
